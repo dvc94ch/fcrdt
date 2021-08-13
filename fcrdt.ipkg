@@ -1,0 +1,14 @@
+package fcrdt
+
+sourcedir = "."
+
+depends = base, contrib
+
+modules =
+    Fcrdt.Crdt,
+    Fcrdt.Lens,
+    Fcrdt.Main
+
+main = Fcrdt.Main
+
+executable = fcrdt

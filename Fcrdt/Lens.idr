@@ -4,6 +4,10 @@ import Data.List
 import Data.Maybe
 import Data.SortedMap
 
+||| TODO
+||| Implement convert transform
+||| Support combining schemas (and/or)
+
 data Value =
       Boolean Bool
     | Number Int
@@ -100,20 +104,69 @@ Eq Lens where
     _ == _ = False
 
 applyLensSchema : Lens -> Schema -> Maybe Schema
-applyLensSchema (AddProperty key required value) SFalse = Just (SObject (insert key (required, schemaOf value) empty))
+applyLensSchema (AddProperty key required value) SFalse =
+    Just (SObject (insert key (required, schemaOf value) empty))
 applyLensSchema (AddProperty key required value) (SObject ps) =
     case lookup key ps of
         Just p => Nothing
         Nothing => Just (SObject (insert key (required, schemaOf value) ps))
 applyLensSchema (AddProperty _ _ _) _ = Nothing
-applyLensSchema (RemoveProperty x y z) schema = ?x_2
-applyLensSchema (RenameProperty x y) schema = ?x_3
-applyLensSchema (HoistProperty x y) schema = ?x_4
-applyLensSchema (PlungeProperty x y) schema = ?x_5
-applyLensSchema (WrapProperty x) schema = ?x_6
-applyLensSchema (HeadProperty x) schema = ?x_7
-applyLensSchema (LensIn x y) schema = ?x_8
-applyLensSchema (LensMap x) schema = ?x_9
+applyLensSchema (RemoveProperty key _ _) (SObject ps) =
+    case lookup key ps of
+        Just p => Just (SObject (delete key ps))
+        Nothing => Nothing
+applyLensSchema (RemoveProperty _ _ _) _ = Nothing
+applyLensSchema (RenameProperty x y) (SObject ps) =
+    case (lookup x ps, lookup y ps) of
+        (Just p, Nothing) => Just (SObject (insert y p (delete x ps)))
+        _ => Nothing
+applyLensSchema (RenameProperty _ _) _ = Nothing
+applyLensSchema (HoistProperty h p) (SObject ps) =
+    case lookup h ps of
+        Just (required, SObject hps) =>
+            (case lookup p hps of
+                Just v =>
+                    let
+                        hps = delete p hps
+                        ps = delete h ps
+                     in
+                        Just (SObject (insert p v (insert h (required, SObject hps) ps)))
+                Nothing => Nothing)
+        _ => Nothing
+applyLensSchema (HoistProperty _ _) _ = Nothing
+applyLensSchema (PlungeProperty h n) (SObject ps) =
+    case (lookup n ps, lookup h ps) of
+        (Just (required, schema), Nothing) =>
+            let
+                hps = insert n (required, schema) empty
+            in
+                Just (SObject (insert h (required, (SObject hps)) (delete n ps)))
+        _ => Nothing
+applyLensSchema (PlungeProperty _ _) _ = Nothing
+applyLensSchema (WrapProperty key) (SObject ps) =
+    case lookup key ps of
+        Just (required, schema) =>
+            Just (SObject (insert key (required, (SArray schema)) ps))
+        Nothing => Nothing
+applyLensSchema (WrapProperty _) _ = Nothing
+applyLensSchema (HeadProperty key) (SObject ps) =
+    case lookup key ps of
+        Just (required, SArray schema) =>
+            Just (SObject (insert key (required, schema) ps))
+        _ => Nothing
+applyLensSchema (HeadProperty _) _ = Nothing
+applyLensSchema (LensIn key lens) (SObject ps) =
+    case lookup key ps of
+        Just (_, schema) => applyLensSchema lens schema
+        Nothing => Nothing
+applyLensSchema (LensIn _ _) _ = Nothing
+applyLensSchema (LensMap lens) SFalse =
+    applyLensSchema (LensMap lens) (SArray SFalse)
+applyLensSchema (LensMap lens) (SArray schema) =
+    case applyLensSchema lens schema of
+        Just schema => Just (SArray schema)
+        Nothing => Nothing
+applyLensSchema (LensMap _) _ = Nothing
 -- applyLensSchema (Convert map) schema = ?x_10
 
 lensToSchema : List Lens -> Maybe Schema
@@ -202,11 +255,18 @@ reverseLens (LensMap x) = LensMap (reverseLens x)
     (applyLensSchema (reverseLens lens) (applyLensSchema lens schema)) = schema
 assertReverseSchema lens schema = ?y-}
 
-{-total assertReverseValue :
+reverseValue : Lens -> Value -> Maybe Value
+reverseValue l v =
+    case applyLensValue l v of
+        Just v => applyLensValue (reverseLens l) v
+        Nothing => Nothing
+
+total assertReverseValue :
     (lens: Lens) ->
     (value: Value) ->
-    (applyLensValue (reverseLens lens) (applyLensValue lens value)) = value
-assertReverseValue lens value = ?z-}
+    (Dec (isJust (applyLensValue lens value) = True)) ->
+    (Dec ((reverseValue lens value) = Just value))
+assertReverseValue lens value = ?z
 
 {-total assertLens :
     (lens: Lens) ->

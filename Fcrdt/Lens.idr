@@ -12,6 +12,15 @@ data Value =
     | Array (List Value)
     | Object (SortedMap String Value)
 
+Eq Value where
+    Null == Null = True
+    Boolean b1 == Boolean b2 = b1 == b2
+    Number n1 == Number n2 = n1 == n2
+    Text t1 == Text t2 = t1 == t2
+    Array vs1 == Array vs2 = vs1 == vs2
+    Object ps1 == Object ps2 = ps1 == ps2
+    _ == _ = False
+
 data Kind =
       NullKind
     | BooleanKind
@@ -27,7 +36,7 @@ Eq Kind where
     TextKind == TextKind = True
     ArrayKind == ArrayKind = True
     ObjectKind == ObjectKind = True
-    a == b = False
+    _ == _ = False
 
 kindOf : Value -> Kind
 kindOf Null = NullKind
@@ -82,11 +91,19 @@ data Lens =
     | HeadProperty String
     | LensIn String Lens
     | LensMap Lens
-    | Sequence Lens Lens
 --    | Convert (List (Value, Value))
 
-applyLens : Lens -> Lens -> Lens
-applyLens a b = Sequence a b
+Eq Lens where
+    AddProperty p1 v1 == AddProperty p2 v2 = p1 == p2 && v1 == v2
+    RemoveProperty p1 v1 == RemoveProperty p2 v2 = p1 == p2 && v1 == v2
+    RenameProperty a1 b1 == RenameProperty a2 b2 = a1 == a2 && b1 == b2
+    HoistProperty h1 p1 == HoistProperty h2 p2 = h1 == h2 && p1 == p2
+    PlungeProperty h1 p1 == PlungeProperty h2 p2 = h1 == h2 && p1 == p2
+    WrapProperty p1 == WrapProperty p2 = p1 == p2
+    HeadProperty p1 == HeadProperty p2 = p1 == p2
+    LensIn p1 l1 == LensIn p2 l2 = p1 == p2 && l1 == l2
+    LensMap l1 == LensMap l2 = l1 == l2
+    _ == _ = False
 
 applyLensSchema : Lens -> Schema -> Schema
 applyLensSchema (AddProperty x y) schema = ?x_1
@@ -98,11 +115,11 @@ applyLensSchema (WrapProperty x) schema = ?x_6
 applyLensSchema (HeadProperty x) schema = ?x_7
 applyLensSchema (LensIn x y) schema = ?x_8
 applyLensSchema (LensMap x) schema = ?x_9
-applyLensSchema (Sequence x y) schema = (applyLensSchema y (applyLensSchema x schema))
 -- applyLensSchema (Convert map) schema = ?x_10
 
-lensToSchema : Lens -> Schema
-lensToSchema lens = applyLensSchema lens STrue
+lensToSchema : List Lens -> Schema
+lensToSchema [] = STrue
+lensToSchema (l::ls) = (applyLensSchema l (lensToSchema ls))
 
 applyLensValue : Lens -> Value -> Maybe Value
 applyLensValue (AddProperty n d) (Object ps) =
@@ -161,10 +178,6 @@ applyLensValue (LensMap x) (Array vs) = foldl
     (Just (Array Nil))
     vs
 applyLensValue (LensMap x) value = Nothing
-applyLensValue (Sequence x y) value =
-    case applyLensValue x value of
-        Just value => applyLensValue y value
-        Nothing => Nothing
 -- applyLensValue (Convert _) (Array _) = Nothing
 -- applyLensValue (Convert _) (Object _) = Nothing
 -- applyLensValue (Convert Nil) _ = Just
@@ -179,7 +192,6 @@ reverseLens (WrapProperty x) = HeadProperty x
 reverseLens (HeadProperty x) = WrapProperty x
 reverseLens (LensIn x y) = LensIn x (reverseLens y)
 reverseLens (LensMap x) = LensMap (reverseLens x)
-reverseLens (Sequence a b) = Sequence b a
 -- reverseLens (Convert cs) = Convert (map (\(k, v) => (v, k)) cs)
 
 {-total assertReverseSchema :
@@ -202,8 +214,22 @@ assertReverseValue lens value = ?z-}
     (Dec ((validate (applyLensSchema lens schema) (applyLensValue lens value)) = True))
 assertLens lens schema value = ?v-}
 
-transform: Lens -> Lens -> Lens
-transform a b = ?a
+stripPostfix : Eq a => List a -> List a -> (List a, List a)
+stripPostfix (a::as) (b::bs) =
+    if a == b
+    then stripPostfix as bs
+    else (a::as, b::bs)
+stripPostfix a b = (a, b)
+
+transform : List Lens -> List Lens -> List Lens
+transform a b =
+    let
+        a = reverse a
+        b = reverse b
+        (a, b) = stripPostfix a b
+        a = reverse a
+        a = map reverseLens a
+    in a ++ b
 
 {-total assertTransform :
     (a: Lens) ->

@@ -5,15 +5,13 @@ import Data.Maybe
 import Data.SortedMap
 
 data Value =
-      Null
-    | Boolean Bool
+      Boolean Bool
     | Number Int
     | Text String
     | Array (List Value)
     | Object (SortedMap String Value)
 
 Eq Value where
-    Null == Null = True
     Boolean b1 == Boolean b2 = b1 == b2
     Number n1 == Number n2 = n1 == n2
     Text t1 == Text t2 = t1 == t2
@@ -22,15 +20,13 @@ Eq Value where
     _ == _ = False
 
 data Kind =
-      NullKind
-    | BooleanKind
+      BooleanKind
     | NumberKind
     | TextKind
     | ArrayKind
     | ObjectKind
 
 Eq Kind where
-    NullKind == NullKind = True
     BooleanKind == BooleanKind = True
     NumberKind == NumberKind = True
     TextKind == TextKind = True
@@ -39,7 +35,6 @@ Eq Kind where
     _ == _ = False
 
 kindOf : Value -> Kind
-kindOf Null = NullKind
 kindOf (Boolean x) = BooleanKind
 kindOf (Number x) = NumberKind
 kindOf (Text x) = TextKind
@@ -47,26 +42,22 @@ kindOf (Array xs) = ArrayKind
 kindOf (Object x) = ObjectKind
 
 data Schema =
-      STrue
-    | SFalse
-    | SAnd Schema Schema
-    | SOr Schema Schema
-    | SNot Schema
-    | SNull
+      SFalse
     | SBoolean
     | SNumber
     | SText
     | SArray Schema
-    | SObject String Bool Schema
+    | SObject (SortedMap String (Bool, Schema))
+
+schemaOf : Value -> Schema
+schemaOf (Boolean x) = SBoolean
+schemaOf (Number x) = SNumber
+schemaOf (Text x) = SText
+schemaOf (Array x) = SArray SFalse
+schemaOf (Object x) = SObject empty
 
 validate : Schema -> Value -> Bool
-validate STrue _ = True
 validate SFalse _ = False
-validate (SAnd x y) value = (validate x value) && (validate y value)
-validate (SOr x y) value = (validate x value) || (validate y value)
-validate (SNot x) value = not (validate x value)
-validate SNull Null = True
-validate SNull _ = False
 validate SBoolean (Boolean _) = True
 validate SBoolean _ = False
 validate SNumber (Number _) = True
@@ -75,15 +66,18 @@ validate SText (Text _) = True
 validate SText _ = False
 validate (SArray x) (Array vs) = foldr (\elem, acc => acc && (validate x elem)) True vs
 validate (SArray _) _ = False
-validate (SObject key required schema) (Object ps) =
-    case lookup key ps of
-        Just v => validate schema v
-        Nothing => not required
-validate (SObject _ _ _) _ = False
+validate (SObject ss) (Object ps) = foldr
+    (\(key, (required, schema)), acc =>
+        acc && case lookup key ps of
+            Just v => validate schema v
+            Nothing => not required)
+    True
+    (SortedMap.toList ss)
+validate (SObject _) _ = False
 
 data Lens =
-      AddProperty String Value
-    | RemoveProperty String Value
+      AddProperty String Bool Value
+    | RemoveProperty String Bool Value
     | RenameProperty String String
     | HoistProperty String String
     | PlungeProperty String String
@@ -94,8 +88,8 @@ data Lens =
 --    | Convert (List (Value, Value))
 
 Eq Lens where
-    AddProperty p1 v1 == AddProperty p2 v2 = p1 == p2 && v1 == v2
-    RemoveProperty p1 v1 == RemoveProperty p2 v2 = p1 == p2 && v1 == v2
+    AddProperty p1 r1 v1 == AddProperty p2 r2 v2 = p1 == p2 && r1 == r2 && v1 == v2
+    RemoveProperty p1 r1 v1 == RemoveProperty p2 r2 v2 = p1 == p2 && r1 == r2 && v1 == v2
     RenameProperty a1 b1 == RenameProperty a2 b2 = a1 == a2 && b1 == b2
     HoistProperty h1 p1 == HoistProperty h2 p2 = h1 == h2 && p1 == p2
     PlungeProperty h1 p1 == PlungeProperty h2 p2 = h1 == h2 && p1 == p2
@@ -105,9 +99,14 @@ Eq Lens where
     LensMap l1 == LensMap l2 = l1 == l2
     _ == _ = False
 
-applyLensSchema : Lens -> Schema -> Schema
-applyLensSchema (AddProperty x y) schema = ?x_1
-applyLensSchema (RemoveProperty x y) schema = ?x_2
+applyLensSchema : Lens -> Schema -> Maybe Schema
+applyLensSchema (AddProperty key required value) SFalse = Just (SObject (insert key (required, schemaOf value) empty))
+applyLensSchema (AddProperty key required value) (SObject ps) =
+    case lookup key ps of
+        Just p => Nothing
+        Nothing => Just (SObject (insert key (required, schemaOf value) ps))
+applyLensSchema (AddProperty _ _ _) _ = Nothing
+applyLensSchema (RemoveProperty x y z) schema = ?x_2
 applyLensSchema (RenameProperty x y) schema = ?x_3
 applyLensSchema (HoistProperty x y) schema = ?x_4
 applyLensSchema (PlungeProperty x y) schema = ?x_5
@@ -117,21 +116,24 @@ applyLensSchema (LensIn x y) schema = ?x_8
 applyLensSchema (LensMap x) schema = ?x_9
 -- applyLensSchema (Convert map) schema = ?x_10
 
-lensToSchema : List Lens -> Schema
-lensToSchema [] = STrue
-lensToSchema (l::ls) = (applyLensSchema l (lensToSchema ls))
+lensToSchema : List Lens -> Maybe Schema
+lensToSchema [] = Just SFalse
+lensToSchema (l::ls) =
+    case lensToSchema ls of
+        Just s => applyLensSchema l s
+        Nothing => Nothing
 
 applyLensValue : Lens -> Value -> Maybe Value
-applyLensValue (AddProperty n d) (Object ps) =
+applyLensValue (AddProperty n required d) (Object ps) =
     if isNothing (lookup n ps)
-    then Just (Object (insert n d ps))
+    then Just (Object (if required then insert n d ps else ps))
     else Nothing
-applyLensValue (AddProperty _ _) _ = Nothing
-applyLensValue (RemoveProperty n d) (Object ps) =
+applyLensValue (AddProperty _ _ _) _ = Nothing
+applyLensValue (RemoveProperty n required d) (Object ps) =
     if isJust (lookup n ps)
     then Just (Object (delete n ps))
-    else Nothing
-applyLensValue (RemoveProperty _ _) _ = Nothing
+    else if required then Nothing else Just (Object ps)
+applyLensValue (RemoveProperty _ _ _) _ = Nothing
 applyLensValue (RenameProperty x y) (Object ps) =
     case (lookup x ps, lookup y ps) of
         (Just v, Nothing) => Just (Object (insert y v (delete x ps)))
@@ -183,8 +185,8 @@ applyLensValue (LensMap x) value = Nothing
 -- applyLensValue (Convert Nil) _ = Just
 
 reverseLens : Lens -> Lens
-reverseLens (AddProperty x y) = RemoveProperty x y
-reverseLens (RemoveProperty x y) = AddProperty x y
+reverseLens (AddProperty x y z) = RemoveProperty x y z
+reverseLens (RemoveProperty x y z) = AddProperty x y z
 reverseLens (RenameProperty x y) = RenameProperty y x
 reverseLens (HoistProperty x y) = PlungeProperty x y
 reverseLens (PlungeProperty x y) = HoistProperty x y

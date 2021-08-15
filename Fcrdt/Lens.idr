@@ -2,7 +2,6 @@ module Fcrdt.Lens
 
 import Data.List
 import Data.Maybe
-import Data.SortedMap
 
 %default total
 
@@ -15,7 +14,7 @@ data Value =
     | Number Int
     | Text String
     | Array (List Value)
-    | Object (SortedMap String Value)
+    | Object (List (String, Value))
 
 Eq Value where
     Boolean b1 == Boolean b2 = b1 == b2
@@ -24,6 +23,23 @@ Eq Value where
     Array vs1 == Array vs2 = assert_total (vs1 == vs2)
     Object ps1 == Object ps2 = assert_total (ps1 == ps2)
     _ == _ = False
+
+get : String -> List (String, a) -> Maybe a
+get _ [] = Nothing
+get key ((k, v) :: xs) = if key == k then Just v else get key xs
+
+insert : String -> a -> List (String, a) -> List (String, a)
+insert key value [] = [(key, value)]
+insert key value ((k, v) :: xs) =
+    if key == k
+    then (key, value) :: xs
+    else (k, v) :: (insert key value xs)
+
+delete : String -> List (String, a) -> List (String, a)
+delete key [] = []
+delete key ((k, v) :: xs) =
+    let xs = delete key xs
+    in if key == k then xs else (k, v) :: xs
 
 data Kind =
       BooleanKind
@@ -41,11 +57,11 @@ Eq Kind where
     _ == _ = False
 
 kindOf : Value -> Kind
-kindOf (Boolean x) = BooleanKind
-kindOf (Number x) = NumberKind
-kindOf (Text x) = TextKind
-kindOf (Array xs) = ArrayKind
-kindOf (Object x) = ObjectKind
+kindOf (Boolean _) = BooleanKind
+kindOf (Number _) = NumberKind
+kindOf (Text _) = TextKind
+kindOf (Array _) = ArrayKind
+kindOf (Object _) = ObjectKind
 
 data Schema =
       SFalse
@@ -53,7 +69,7 @@ data Schema =
     | SNumber
     | SText
     | SArray Schema
-    | SObject (SortedMap String (Bool, Schema))
+    | SObject (List (String, (Bool, Schema)))
 
 schemaOf : Value -> Schema
 schemaOf (Boolean x) = SBoolean
@@ -73,17 +89,17 @@ validate SText _ = False
 validate (SArray _) (Array []) = True
 validate (SArray schema) (Array (y :: xs)) = validate schema y && validate (SArray schema) (Array xs)
 validate (SArray _) _ = False
-validate (SObject ss) (Object ps) = validateProperties (toList ps) ss && validateRequired (toList ss) ps where
-    validateProperties : List (String, Value) -> SortedMap String (Bool, Schema) -> Bool
+validate (SObject ss) (Object ps) = validateProperties ps ss && validateRequired (toList ss) ps where
+    validateProperties : List (String, Value) -> List (String, (Bool, Schema)) -> Bool
     validateProperties [] _ = True
-    validateProperties ((key, value) :: xs) ss with (lookup key ss)
+    validateProperties ((key, value) :: xs) ss with (get key ss)
         validateProperties ((_, value) :: xs) _ | Just (_, schema) =
             assert_total (validate schema value) && validateProperties xs ss
         validateProperties ((_, _) :: _) _ | Nothing = False
-    validateRequired : List (String, (Bool, Schema)) -> SortedMap String Value -> Bool
+    validateRequired : List (String, (Bool, Schema)) -> List (String, Value) -> Bool
     validateRequired [] _ = True
     validateRequired ((_, (False, _)) :: xs) ps = validateRequired xs ps
-    validateRequired ((key, (True, _)) :: xs) ps with (lookup key ps)
+    validateRequired ((key, (True, _)) :: xs) ps with (get key ps)
         validateRequired ((key, (True, _)) :: xs) ps | Just _ = validateRequired xs ps
         validateRequired ((key, (True, _)) :: xs) ps | Nothing = False
 validate (SObject _) _ = False
@@ -115,24 +131,24 @@ applyLensSchema : Lens -> Schema -> Maybe Schema
 applyLensSchema (AddProperty key required value) SFalse =
     Just (SObject (insert key (required, schemaOf value) empty))
 applyLensSchema (AddProperty key required value) (SObject ps) =
-    case lookup key ps of
+    case get key ps of
         Just p => Nothing
         Nothing => Just (SObject (insert key (required, schemaOf value) ps))
 applyLensSchema (AddProperty _ _ _) _ = Nothing
 applyLensSchema (RemoveProperty key _ _) (SObject ps) =
-    case lookup key ps of
+    case get key ps of
         Just p => Just (SObject (delete key ps))
         Nothing => Nothing
 applyLensSchema (RemoveProperty _ _ _) _ = Nothing
 applyLensSchema (RenameProperty x y) (SObject ps) =
-    case (lookup x ps, lookup y ps) of
+    case (get x ps, get y ps) of
         (Just p, Nothing) => Just (SObject (insert y p (delete x ps)))
         _ => Nothing
 applyLensSchema (RenameProperty _ _) _ = Nothing
 applyLensSchema (HoistProperty h p) (SObject ps) =
-    case lookup h ps of
+    case get h ps of
         Just (required, SObject hps) =>
-            (case lookup p hps of
+            (case get p hps of
                 Just v =>
                     let
                         hps = delete p hps
@@ -143,7 +159,7 @@ applyLensSchema (HoistProperty h p) (SObject ps) =
         _ => Nothing
 applyLensSchema (HoistProperty _ _) _ = Nothing
 applyLensSchema (PlungeProperty h n) (SObject ps) =
-    case (lookup n ps, lookup h ps) of
+    case (get n ps, get h ps) of
         (Just (required, schema), Nothing) =>
             let
                 hps = insert n (required, schema) empty
@@ -152,19 +168,19 @@ applyLensSchema (PlungeProperty h n) (SObject ps) =
         _ => Nothing
 applyLensSchema (PlungeProperty _ _) _ = Nothing
 applyLensSchema (WrapProperty key) (SObject ps) =
-    case lookup key ps of
+    case get key ps of
         Just (required, schema) =>
             Just (SObject (insert key (required, (SArray schema)) ps))
         Nothing => Nothing
 applyLensSchema (WrapProperty _) _ = Nothing
 applyLensSchema (HeadProperty key) (SObject ps) =
-    case lookup key ps of
+    case get key ps of
         Just (required, SArray schema) =>
             Just (SObject (insert key (required, schema) ps))
         _ => Nothing
 applyLensSchema (HeadProperty _) _ = Nothing
 applyLensSchema (LensIn key lens) (SObject ps) =
-    case lookup key ps of
+    case get key ps of
         Just (_, schema) => applyLensSchema lens schema
         Nothing => Nothing
 applyLensSchema (LensIn _ _) _ = Nothing
@@ -185,24 +201,24 @@ lensToSchema (l::ls) =
 
 applyLensValue : Lens -> Value -> Maybe Value
 applyLensValue (AddProperty n required d) (Object ps) =
-    if isNothing (lookup n ps)
+    if isNothing (get n ps)
     then Just (Object (if required then insert n d ps else ps))
     else Nothing
 applyLensValue (AddProperty _ _ _) _ = Nothing
 applyLensValue (RemoveProperty n required d) (Object ps) =
-    if isJust (lookup n ps)
+    if isJust (get n ps)
     then Just (Object (delete n ps))
     else if required then Nothing else Just (Object ps)
 applyLensValue (RemoveProperty _ _ _) _ = Nothing
 applyLensValue (RenameProperty x y) (Object ps) =
-    case (lookup x ps, lookup y ps) of
+    case (get x ps, get y ps) of
         (Just v, Nothing) => Just (Object (insert y v (delete x ps)))
         (x, y) => Nothing
 applyLensValue (RenameProperty _ _) _ = Nothing
 applyLensValue (HoistProperty hp p) (Object ps) =
-    case lookup hp ps of
+    case get hp ps of
         Just (Object hps) =>
-            (case (lookup p hps, lookup p ps) of
+            (case (get p hps, get p ps) of
                 ((Just v), Nothing) =>
                     (let
                         hps = (delete p hps)
@@ -213,7 +229,7 @@ applyLensValue (HoistProperty hp p) (Object ps) =
         _ => Nothing
 applyLensValue (HoistProperty _ _) _ = Nothing
 applyLensValue (PlungeProperty hp p) (Object ps) =
-    case (lookup p ps, lookup hp ps) of
+    case (get p ps, get hp ps) of
         (Just v, Nothing) =>
             (let
                 ps = (delete p ps)
@@ -227,7 +243,7 @@ applyLensValue (WrapProperty x) v = Just (Array (v :: Nil))
 applyLensValue (HeadProperty x) (Array (v :: Nil)) = Just v
 applyLensValue (HeadProperty _) _ = Nothing
 applyLensValue (LensIn x l) (Object ps) =
-    case lookup x ps of
+    case get x ps of
         Just v => case applyLensValue l v of
             Just v => Just (Object (insert x v ps))
             Nothing => Nothing

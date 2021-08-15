@@ -280,6 +280,7 @@ reverseSchema l s =
         Just s => applyLensSchema (reverseLens l) s
         Nothing => Nothing
 
+||| Forwards and backwards compatibility requires schema transformations to be reversible
 assertReverseSchema :
     (lens: Lens) ->
     (schema: Schema) ->
@@ -337,70 +338,7 @@ assertReverseSchema (LensMap _) SText Refl impossible
 assertReverseSchema (LensMap l) (SArray allowEmpty schema) prf = ?assertReverseSchemaLensMap
 assertReverseSchema (LensMap _) (SObject _) Refl impossible
 
-reverseValue : Lens -> Value -> Maybe Value
-reverseValue l v =
-    case applyLensValue l v of
-        Just v => applyLensValue (reverseLens l) v
-        Nothing => Nothing
-
-assertReverseValue :
-    (lens: Lens) ->
-    (value: Value) ->
-    (isJust (applyLensValue lens value) = True) ->
-    (reverseValue lens value = Just value)
-assertReverseValue (AddProperty _ _ _) (Boolean _) Refl impossible
-assertReverseValue (AddProperty _ _ _) (Number _) Refl impossible
-assertReverseValue (AddProperty _ _ _) (Text _) Refl impossible
-assertReverseValue (AddProperty _ _ _) (Array _) Refl impossible
-assertReverseValue (AddProperty _ False _) (Object []) _ = Refl
-assertReverseValue (AddProperty n False v) (Object (x :: xs)) prf = ?assertReverseValueAddProperty
-assertReverseValue (AddProperty n True v) (Object []) Refl = ?assertReverseValueAddPropertyRequired_1
-assertReverseValue (AddProperty n True v) (Object (x :: xs)) prf = ?assertReverseValueAddPropertyRequired_2
-assertReverseValue (RemoveProperty _ _ _) (Boolean _) Refl impossible
-assertReverseValue (RemoveProperty _ _ _) (Number _) Refl impossible
-assertReverseValue (RemoveProperty _ _ _) (Text _) Refl impossible
-assertReverseValue (RemoveProperty _ _ _) (Array _) Refl impossible
-assertReverseValue (RemoveProperty x False z) (Object w) prf = ?assertReverseValueRemoveProperty
-assertReverseValue (RemoveProperty x True z) (Object w) prf = ?assertReverseValueRemovePropertyRequired
-assertReverseValue (RenameProperty _ _) (Boolean _) Refl impossible
-assertReverseValue (RenameProperty _ _) (Number _) Refl impossible
-assertReverseValue (RenameProperty _ _) (Text _) Refl impossible
-assertReverseValue (RenameProperty _ _) (Array _) Refl impossible
-assertReverseValue (RenameProperty _ _) (Object []) Refl impossible
-assertReverseValue (RenameProperty a b) (Object (x :: xs)) prf = ?assertReverseValueRenameProperty
-assertReverseValue (HoistProperty _ _) (Boolean _) Refl impossible
-assertReverseValue (HoistProperty _ _) (Number _) Refl impossible
-assertReverseValue (HoistProperty _ _) (Text _) Refl impossible
-assertReverseValue (HoistProperty _ _) (Array _) Refl impossible
-assertReverseValue (HoistProperty _ _) (Object []) Refl impossible
-assertReverseValue (HoistProperty h n) (Object (x :: xs)) prf = ?assertReverseValueHoistProperty
-assertReverseValue (PlungeProperty _ _) (Boolean _) Refl impossible
-assertReverseValue (PlungeProperty _ _) (Number _) Refl impossible
-assertReverseValue (PlungeProperty _ _) (Text _) Refl impossible
-assertReverseValue (PlungeProperty _ _) (Array _) Refl impossible
-assertReverseValue (PlungeProperty _ _) (Object []) Refl impossible
-assertReverseValue (PlungeProperty h n) (Object (x :: xs)) prf = ?assertReverseValuePlungeProperty
-assertReverseValue WrapProperty _ _ = Refl
-assertReverseValue HeadProperty (Boolean _) Refl impossible
-assertReverseValue HeadProperty (Number _) Refl impossible
-assertReverseValue HeadProperty (Text _) Refl impossible
-assertReverseValue HeadProperty (Array []) Refl impossible
--- TODO: how to weaken the reversability condition
-assertReverseValue HeadProperty (Array (x :: xs)) prf = ?hole
-assertReverseValue HeadProperty (Object _) Refl impossible
-assertReverseValue (LensIn _ _) (Boolean _) Refl impossible
-assertReverseValue (LensIn _ _) (Number _) Refl impossible
-assertReverseValue (LensIn _ _) (Text _) Refl impossible
-assertReverseValue (LensIn _ _) (Array _) Refl impossible
-assertReverseValue (LensIn _ _) (Object []) Refl impossible
-assertReverseValue (LensIn key lens) (Object (x :: xs)) prf = ?assertReverseValueLensIn
-assertReverseValue (LensMap _) (Boolean _) Refl impossible
-assertReverseValue (LensMap _) (Number _) Refl impossible
-assertReverseValue (LensMap _) (Text _) Refl impossible
-assertReverseValue (LensMap lens) (Array []) Refl = Refl
-assertReverseValue (LensMap lens) (Array (x :: xs)) prf = ?assertReverseValueLensMap
-assertReverseValue (LensMap _) (Object _) Refl impossible
-
+||| If transforming the schema succeeds, transforming the value must succeed
 schemaJustImpliesValueJust :
     (lens: Lens) ->
     (schema: Schema) ->
@@ -506,6 +444,7 @@ validateLensed l s v =
         (Just s, Just v) => validate s v
         _ => False
 
+||| Transforming a valid value must result in a valid value
 assertLens :
     (lens: Lens) ->
     (schema: Schema) ->

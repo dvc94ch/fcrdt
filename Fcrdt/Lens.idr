@@ -1,9 +1,10 @@
 module Fcrdt.Lens
 
-
 import Data.List
 import Data.Maybe
 import Data.SortedMap
+
+%default total
 
 ||| TODO
 ||| Implement convert transform
@@ -20,8 +21,8 @@ Eq Value where
     Boolean b1 == Boolean b2 = b1 == b2
     Number n1 == Number n2 = n1 == n2
     Text t1 == Text t2 = t1 == t2
-    Array vs1 == Array vs2 = vs1 == vs2
-    Object ps1 == Object ps2 = ps1 == ps2
+    Array vs1 == Array vs2 = assert_total (vs1 == vs2)
+    Object ps1 == Object ps2 = assert_total (ps1 == ps2)
     _ == _ = False
 
 data Kind =
@@ -69,15 +70,22 @@ validate SNumber (Number _) = True
 validate SNumber _ = False
 validate SText (Text _) = True
 validate SText _ = False
-validate (SArray x) (Array vs) = foldr (\elem, acc => acc && (validate x elem)) True vs
+validate (SArray _) (Array []) = True
+validate (SArray schema) (Array (y :: xs)) = validate schema y && validate (SArray schema) (Array xs)
 validate (SArray _) _ = False
-validate (SObject ss) (Object ps) = foldr
-    (\(key, (required, schema)), acc =>
-        acc && case lookup key ps of
-            Just v => validate schema v
-            Nothing => not required)
-    True
-    (SortedMap.toList ss)
+validate (SObject ss) (Object ps) = validateProperties (toList ps) ss && validateRequired (toList ss) ps where
+    validateProperties : List (String, Value) -> SortedMap String (Bool, Schema) -> Bool
+    validateProperties [] _ = True
+    validateProperties ((key, value) :: xs) ss with (lookup key ss)
+        validateProperties ((_, value) :: xs) _ | Just (_, schema) =
+            assert_total (validate schema value) && validateProperties xs ss
+        validateProperties ((_, _) :: _) _ | Nothing = False
+    validateRequired : List (String, (Bool, Schema)) -> SortedMap String Value -> Bool
+    validateRequired [] _ = True
+    validateRequired ((_, (False, _)) :: xs) ps = validateRequired xs ps
+    validateRequired ((key, (True, _)) :: xs) ps with (lookup key ps)
+        validateRequired ((key, (True, _)) :: xs) ps | Just _ = validateRequired xs ps
+        validateRequired ((key, (True, _)) :: xs) ps | Nothing = False
 validate (SObject _) _ = False
 
 data Lens =

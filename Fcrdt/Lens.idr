@@ -9,12 +9,14 @@ import Data.Maybe
 ||| Implement convert transform
 ||| Support combining schemas (and/or)
 
+||| Modeling keys as nats as idris seems to be able to
+||| reason better about equality
 data Value =
       Boolean Bool
     | Number Int
     | Text String
     | Array (List Value)
-    | Object (List (String, Value))
+    | Object (List (Nat, Value))
 
 Eq Value where
     Boolean b1 == Boolean b2 = b1 == b2
@@ -24,22 +26,32 @@ Eq Value where
     Object ps1 == Object ps2 = assert_total (ps1 == ps2)
     _ == _ = False
 
-get : String -> List (String, a) -> Maybe a
+get : Eq a => a -> List (a, b) -> Maybe b
 get _ [] = Nothing
 get key ((k, v) :: xs) = if key == k then Just v else get key xs
 
-insert : String -> a -> List (String, a) -> List (String, a)
+insert : Eq a => a -> b -> List (a, b) -> List (a, b)
 insert key value [] = [(key, value)]
 insert key value ((k, v) :: xs) =
     if key == k
     then (key, value) :: xs
     else (k, v) :: (insert key value xs)
 
-delete : String -> List (String, a) -> List (String, a)
+delete : Eq a => a -> List (a, b) -> List (a, b)
 delete key [] = []
-delete key ((k, v) :: xs) =
-    let xs = delete key xs
-    in if key == k then xs else (k, v) :: xs
+delete key ((k, v) :: xs) = if key == k then xs else (k, v) :: xs
+
+lemmaNatEquality : (n: Nat) -> n == n = True
+lemmaNatEquality 0 = Refl
+lemmaNatEquality (S k) = rewrite lemmaNatEquality k in Refl
+
+lemmaDeleteAfterInsert :
+    (key: Nat) ->
+    (value: b) ->
+    (map: List (Nat, b)) ->
+    map = (delete key (insert key value map))
+lemmaDeleteAfterInsert key value [] = rewrite lemmaNatEquality key in Refl
+lemmaDeleteAfterInsert key value ((k, v) :: xs) = ?todo
 
 data Kind =
       BooleanKind
@@ -69,7 +81,7 @@ data Schema =
     | SNumber
     | SText
     | SArray Schema
-    | SObject (List (String, (Bool, Schema)))
+    | SObject (List (Nat, (Bool, Schema)))
 
 schemaOf : Value -> Schema
 schemaOf (Boolean x) = SBoolean
@@ -89,14 +101,14 @@ validate SText _ = False
 validate (SArray _) (Array []) = True
 validate (SArray schema) (Array (y :: xs)) = validate schema y && validate (SArray schema) (Array xs)
 validate (SArray _) _ = False
-validate (SObject ss) (Object ps) = validateProperties ps ss && validateRequired (toList ss) ps where
-    validateProperties : List (String, Value) -> List (String, (Bool, Schema)) -> Bool
+validate (SObject ss) (Object ps) = validateProperties ps ss && validateRequired ss ps where
+    validateProperties : List (Nat, Value) -> List (Nat, (Bool, Schema)) -> Bool
     validateProperties [] _ = True
     validateProperties ((key, value) :: xs) ss with (get key ss)
         validateProperties ((_, value) :: xs) _ | Just (_, schema) =
             assert_total (validate schema value) && validateProperties xs ss
         validateProperties ((_, _) :: _) _ | Nothing = False
-    validateRequired : List (String, (Bool, Schema)) -> List (String, Value) -> Bool
+    validateRequired : List (Nat, (Bool, Schema)) -> List (Nat, Value) -> Bool
     validateRequired [] _ = True
     validateRequired ((_, (False, _)) :: xs) ps = validateRequired xs ps
     validateRequired ((key, (True, _)) :: xs) ps with (get key ps)
@@ -105,14 +117,14 @@ validate (SObject ss) (Object ps) = validateProperties ps ss && validateRequired
 validate (SObject _) _ = False
 
 data Lens =
-      AddProperty String Bool Value
-    | RemoveProperty String Bool Value
-    | RenameProperty String String
-    | HoistProperty String String
-    | PlungeProperty String String
-    | WrapProperty String
-    | HeadProperty String
-    | LensIn String Lens
+      AddProperty Nat Bool Value
+    | RemoveProperty Nat Bool Value
+    | RenameProperty Nat Nat
+    | HoistProperty Nat Nat
+    | PlungeProperty Nat Nat
+    | WrapProperty Nat
+    | HeadProperty Nat
+    | LensIn Nat Lens
     | LensMap Lens
 
 Eq Lens where
@@ -281,7 +293,8 @@ assertReverseSchema :
     (schema: Schema) ->
     (isJust (applyLensSchema lens schema) = True) ->
     (reverseSchema lens schema = Just schema)
-assertReverseSchema (AddProperty x y z) SFalse Refl = ?assertReverseSchema_rhs_16
+assertReverseSchema (AddProperty n False v) SFalse Refl = ?assertReverseSchema_rhs_25
+assertReverseSchema (AddProperty n True v) SFalse Refl = ?assertReverseSchema_rhs_26
 assertReverseSchema (AddProperty _ _ _) SBoolean Refl impossible
 assertReverseSchema (AddProperty _ _ _) SNumber Refl impossible
 assertReverseSchema (AddProperty _ _ _) SText Refl impossible
@@ -316,13 +329,15 @@ assertReverseSchema (WrapProperty _) SBoolean Refl impossible
 assertReverseSchema (WrapProperty _) SNumber Refl impossible
 assertReverseSchema (WrapProperty _) SText Refl impossible
 assertReverseSchema (WrapProperty _) (SArray _) Refl impossible
-assertReverseSchema (WrapProperty x) (SObject y) prf = ?assertReverseSchema_rhs_21
+assertReverseSchema (WrapProperty _) (SObject []) Refl impossible
+assertReverseSchema (WrapProperty n) (SObject (x :: xs)) prf = ?assertReverseSchema_rhs_29
 assertReverseSchema (HeadProperty _) SFalse Refl impossible
 assertReverseSchema (HeadProperty _) SBoolean Refl impossible
 assertReverseSchema (HeadProperty _) SNumber Refl impossible
 assertReverseSchema (HeadProperty _) SText Refl impossible
 assertReverseSchema (HeadProperty _) (SArray _) Refl impossible
-assertReverseSchema (HeadProperty x) (SObject y) prf = ?assertReverseSchema_rhs_22
+assertReverseSchema (HeadProperty _) (SObject []) Refl impossible
+assertReverseSchema (HeadProperty n) (SObject (x :: xs)) prf = ?assertReverseSchema_rhs_30
 assertReverseSchema (LensIn _ _) SFalse Refl impossible
 assertReverseSchema (LensIn _ _) SBoolean Refl impossible
 assertReverseSchema (LensIn _ _) SNumber Refl impossible
@@ -351,8 +366,10 @@ assertReverseValue (AddProperty _ _ _) (Boolean _) Refl impossible
 assertReverseValue (AddProperty _ _ _) (Number _) Refl impossible
 assertReverseValue (AddProperty _ _ _) (Text _) Refl impossible
 assertReverseValue (AddProperty _ _ _) (Array _) Refl impossible
-assertReverseValue (AddProperty x False z) (Object w) prf = ?assertReverseValueAddProperty
-assertReverseValue (AddProperty x True z) (Object w) prf = ?assertReverseValueAddPropertyRequired
+assertReverseValue (AddProperty _ False _) (Object []) _ = Refl
+assertReverseValue (AddProperty n False v) (Object (x :: xs)) prf = ?assertReverseValueAddProperty
+assertReverseValue (AddProperty n True v) (Object []) Refl = ?assertReverseValueAddPropertyRequired_1
+assertReverseValue (AddProperty n True v) (Object (x :: xs)) prf = ?assertReverseValueAddPropertyRequired_2
 assertReverseValue (RemoveProperty _ _ _) (Boolean _) Refl impossible
 assertReverseValue (RemoveProperty _ _ _) (Number _) Refl impossible
 assertReverseValue (RemoveProperty _ _ _) (Text _) Refl impossible
@@ -363,17 +380,20 @@ assertReverseValue (RenameProperty _ _) (Boolean _) Refl impossible
 assertReverseValue (RenameProperty _ _) (Number _) Refl impossible
 assertReverseValue (RenameProperty _ _) (Text _) Refl impossible
 assertReverseValue (RenameProperty _ _) (Array _) Refl impossible
-assertReverseValue (RenameProperty x y) (Object z) prf = ?assertReverseValueRenameProperty
+assertReverseValue (RenameProperty _ _) (Object []) Refl impossible
+assertReverseValue (RenameProperty a b) (Object (x :: xs)) prf = ?assertReverseValueRenameProperty
 assertReverseValue (HoistProperty _ _) (Boolean _) Refl impossible
 assertReverseValue (HoistProperty _ _) (Number _) Refl impossible
 assertReverseValue (HoistProperty _ _) (Text _) Refl impossible
 assertReverseValue (HoistProperty _ _) (Array _) Refl impossible
-assertReverseValue (HoistProperty x y) (Object z) prf = ?assertReverseValueHoistProperty
+assertReverseValue (HoistProperty _ _) (Object []) Refl impossible
+assertReverseValue (HoistProperty h n) (Object (x :: xs)) prf = ?assertReverseValueHoistProperty
 assertReverseValue (PlungeProperty _ _) (Boolean _) Refl impossible
 assertReverseValue (PlungeProperty _ _) (Number _) Refl impossible
 assertReverseValue (PlungeProperty _ _) (Text _) Refl impossible
 assertReverseValue (PlungeProperty _ _) (Array _) Refl impossible
-assertReverseValue (PlungeProperty x y) (Object z) prf = ?assertReverseValuePlungeProperty
+assertReverseValue (PlungeProperty _ _) (Object []) Refl impossible
+assertReverseValue (PlungeProperty h n) (Object (x :: xs)) prf = ?assertReverseValuePlungeProperty
 assertReverseValue (WrapProperty x) value prf  = Refl
 assertReverseValue (HeadProperty _) (Boolean _) Refl impossible
 assertReverseValue (HeadProperty _) (Number _) Refl impossible
@@ -386,7 +406,8 @@ assertReverseValue (LensIn _ _) (Boolean _) Refl impossible
 assertReverseValue (LensIn _ _) (Number _) Refl impossible
 assertReverseValue (LensIn _ _) (Text _) Refl impossible
 assertReverseValue (LensIn _ _) (Array _) Refl impossible
-assertReverseValue (LensIn key lens) (Object props) prf = ?assertReverseValueLensIn
+assertReverseValue (LensIn _ _) (Object []) Refl impossible
+assertReverseValue (LensIn key lens) (Object (x :: xs)) prf = ?assertReverseValueLensIn
 assertReverseValue (LensMap _) (Boolean _) Refl impossible
 assertReverseValue (LensMap _) (Number _) Refl impossible
 assertReverseValue (LensMap _) (Text _) Refl impossible
@@ -411,7 +432,10 @@ schemaJustImpliesValueJust (AddProperty _ _ _) (SObject _) (Boolean _) Refl _ im
 schemaJustImpliesValueJust (AddProperty _ _ _) (SObject _) (Number _) Refl _ impossible
 schemaJustImpliesValueJust (AddProperty _ _ _) (SObject _) (Text _) Refl _ impossible
 schemaJustImpliesValueJust (AddProperty _ _ _) (SObject _) (Array _) Refl _ impossible
-schemaJustImpliesValueJust (AddProperty x y z) (SObject w) (Object v) prf prf1 = ?schemaJustImpliesValueJust_rhs_27
+schemaJustImpliesValueJust (AddProperty _ _ _) (SObject []) (Object []) _ _ = Refl
+schemaJustImpliesValueJust (AddProperty n r v) (SObject []) (Object (x :: xs)) prf Refl = ?schemaJustImpliesValueJust_rhs_40
+schemaJustImpliesValueJust (AddProperty _ _ _) (SObject (x :: xs)) (Object []) _ _ = Refl
+schemaJustImpliesValueJust (AddProperty n r v) (SObject (x :: xs)) (Object (y :: ys)) prf prf1 = ?schemaJustImpliesValueJust_rhs_39
 schemaJustImpliesValueJust (RemoveProperty _ _ _) SFalse _ _ Refl impossible
 schemaJustImpliesValueJust (RemoveProperty _ _ _) SBoolean _ _ Refl impossible
 schemaJustImpliesValueJust (RemoveProperty _ _ _) SNumber _ _ Refl impossible
@@ -461,7 +485,7 @@ schemaJustImpliesValueJust (WrapProperty _) (SObject _) (Boolean _) Refl _ impos
 schemaJustImpliesValueJust (WrapProperty _) (SObject _) (Number _) Refl _ impossible
 schemaJustImpliesValueJust (WrapProperty _) (SObject _) (Text _) Refl _ impossible
 schemaJustImpliesValueJust (WrapProperty _) (SObject _) (Array _) Refl _ impossible
-schemaJustImpliesValueJust (WrapProperty x) (SObject y) (Object z) prf prf1 = ?schemaJustImpliesValueJust_rhs_32
+schemaJustImpliesValueJust (WrapProperty _) (SObject _) (Object _) _ _ = Refl
 schemaJustImpliesValueJust (HeadProperty _) SFalse _ _ Refl impossible
 schemaJustImpliesValueJust (HeadProperty _) SBoolean _ _ Refl impossible
 schemaJustImpliesValueJust (HeadProperty _) SNumber _ _ Refl impossible

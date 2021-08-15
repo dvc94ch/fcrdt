@@ -98,7 +98,6 @@ data Lens =
     | HeadProperty String
     | LensIn String Lens
     | LensMap Lens
---    | Convert (List (Value, Value))
 
 Eq Lens where
     AddProperty p1 r1 v1 == AddProperty p2 r2 v2 = p1 == p2 && r1 == r2 && v1 == v2
@@ -176,7 +175,6 @@ applyLensSchema (LensMap lens) (SArray schema) =
         Just schema => Just (SArray schema)
         Nothing => Nothing
 applyLensSchema (LensMap _) _ = Nothing
--- applyLensSchema (Convert map) schema = ?x_10
 
 lensToSchema : List Lens -> Maybe Schema
 lensToSchema [] = Just SFalse
@@ -244,9 +242,6 @@ applyLensValue (LensMap x) (Array vs) = foldl
     (Just (Array Nil))
     vs
 applyLensValue (LensMap x) value = Nothing
--- applyLensValue (Convert _) (Array _) = Nothing
--- applyLensValue (Convert _) (Object _) = Nothing
--- applyLensValue (Convert Nil) _ = Just
 
 reverseLens : Lens -> Lens
 reverseLens (AddProperty x y z) = RemoveProperty x y z
@@ -258,13 +253,72 @@ reverseLens (WrapProperty x) = HeadProperty x
 reverseLens (HeadProperty x) = WrapProperty x
 reverseLens (LensIn x y) = LensIn x (reverseLens y)
 reverseLens (LensMap x) = LensMap (reverseLens x)
--- reverseLens (Convert cs) = Convert (map (\(k, v) => (v, k)) cs)
 
-{-total assertReverseSchema :
+reverseSchema : Lens -> Schema -> Maybe Schema
+reverseSchema l s =
+    case applyLensSchema l s of
+        Just s => applyLensSchema (reverseLens l) s
+        Nothing => Nothing
+
+assertReverseSchema :
     (lens: Lens) ->
     (schema: Schema) ->
-    (applyLensSchema (reverseLens lens) (applyLensSchema lens schema)) = schema
-assertReverseSchema lens schema = ?y-}
+    (isJust (applyLensSchema lens schema) = True) ->
+    (reverseSchema lens schema = Just schema)
+assertReverseSchema (AddProperty x y z) SFalse Refl = ?assertReverseSchema_rhs_16
+assertReverseSchema (AddProperty _ _ _) SBoolean Refl impossible
+assertReverseSchema (AddProperty _ _ _) SNumber Refl impossible
+assertReverseSchema (AddProperty _ _ _) SText Refl impossible
+assertReverseSchema (AddProperty _ _ _) (SArray _) Refl impossible
+assertReverseSchema (AddProperty x y z) (SObject w) prf = ?assertReverseSchema_rhs_15
+assertReverseSchema (RemoveProperty _ _ _) SFalse Refl impossible
+assertReverseSchema (RemoveProperty _ _ _) SBoolean Refl impossible
+assertReverseSchema (RemoveProperty _ _ _) SNumber Refl impossible
+assertReverseSchema (RemoveProperty _ _ _) SText Refl impossible
+assertReverseSchema (RemoveProperty _ _ _) (SArray _) Refl impossible
+assertReverseSchema (RemoveProperty x y z) (SObject w) prf = ?assertReverseSchema_rhs_17
+assertReverseSchema (RenameProperty _ _) SFalse Refl impossible
+assertReverseSchema (RenameProperty _ _) SBoolean Refl impossible
+assertReverseSchema (RenameProperty _ _) SNumber Refl impossible
+assertReverseSchema (RenameProperty _ _) SText Refl impossible
+assertReverseSchema (RenameProperty _ _) (SArray _) Refl impossible
+assertReverseSchema (RenameProperty x y) (SObject z) prf = ?assertReverseSchema_rhs_18
+assertReverseSchema (HoistProperty _ _) SFalse Refl impossible
+assertReverseSchema (HoistProperty _ _) SBoolean Refl impossible
+assertReverseSchema (HoistProperty _ _) SNumber Refl impossible
+assertReverseSchema (HoistProperty _ _) SText Refl impossible
+assertReverseSchema (HoistProperty _ _) (SArray _) Refl impossible
+assertReverseSchema (HoistProperty x y) (SObject z) prf = ?assertReverseSchema_rhs_19
+assertReverseSchema (PlungeProperty _ _) SFalse Refl impossible
+assertReverseSchema (PlungeProperty _ _) SBoolean Refl impossible
+assertReverseSchema (PlungeProperty _ _) SNumber Refl impossible
+assertReverseSchema (PlungeProperty _ _) SText Refl impossible
+assertReverseSchema (PlungeProperty _ _) (SArray _) Refl impossible
+assertReverseSchema (PlungeProperty x y) (SObject z) prf = ?assertReverseSchema_rhs_20
+assertReverseSchema (WrapProperty _) SFalse Refl impossible
+assertReverseSchema (WrapProperty _) SBoolean Refl impossible
+assertReverseSchema (WrapProperty _) SNumber Refl impossible
+assertReverseSchema (WrapProperty _) SText Refl impossible
+assertReverseSchema (WrapProperty _) (SArray _) Refl impossible
+assertReverseSchema (WrapProperty x) (SObject y) prf = ?assertReverseSchema_rhs_21
+assertReverseSchema (HeadProperty _) SFalse Refl impossible
+assertReverseSchema (HeadProperty _) SBoolean Refl impossible
+assertReverseSchema (HeadProperty _) SNumber Refl impossible
+assertReverseSchema (HeadProperty _) SText Refl impossible
+assertReverseSchema (HeadProperty _) (SArray _) Refl impossible
+assertReverseSchema (HeadProperty x) (SObject y) prf = ?assertReverseSchema_rhs_22
+assertReverseSchema (LensIn _ _) SFalse Refl impossible
+assertReverseSchema (LensIn _ _) SBoolean Refl impossible
+assertReverseSchema (LensIn _ _) SNumber Refl impossible
+assertReverseSchema (LensIn _ _) SText Refl impossible
+assertReverseSchema (LensIn _ _) (SArray _) Refl impossible
+assertReverseSchema (LensIn x y) (SObject z) prf = ?assertReverseSchema_rhs_23
+assertReverseSchema (LensMap x) SFalse prf = ?assertReverseSchema_rhs_24
+assertReverseSchema (LensMap _) SBoolean Refl impossible
+assertReverseSchema (LensMap _) SNumber Refl impossible
+assertReverseSchema (LensMap _) SText Refl impossible
+assertReverseSchema (LensMap x) (SArray y) prf = ?assertReverseSchema_rhs_28
+assertReverseSchema (LensMap _) (SObject _) Refl impossible
 
 reverseValue : Lens -> Value -> Maybe Value
 reverseValue l v =

@@ -103,3 +103,29 @@ plus_commutes 0 b = plus_commutes_Z b
 plus_commutes (S k) b =
     let ind = plus_commutes k b in
         rewrite ind in plus_commutes_S k b
+
+alwaysZero : (a, b : Nat) -> Nat
+alwaysZero a b = if a == b then 0 else 0
+
+assertAlwaysZero_1 : (a : Nat) -> (b : Nat) -> Either (a == b = True) (a == b = False) -> alwaysZero a b = 0
+assertAlwaysZero_1 a b (Left prf) = rewrite prf in Refl
+assertAlwaysZero_1 a b (Right prf) = rewrite prf in Refl
+
+assertAlwaysZero_2 : (a, b : Nat) -> Either (a == b = True) (a == b = False)
+assertAlwaysZero_2 0 0 = Left Refl
+assertAlwaysZero_2 0 (S k) = Right Refl
+assertAlwaysZero_2 (S k) 0 = Right Refl
+assertAlwaysZero_2 (S k) (S j) = assertAlwaysZero_2 k j
+
+assertAlwaysZero : (a, b : Nat) -> (alwaysZero a b = 0)
+assertAlwaysZero a b = assertAlwaysZero_1 a b (assertAlwaysZero_2 a b)
+
+
+alwaysZero2 : Maybe a -> Nat
+alwaysZero2 a =
+    case a of
+        Just b => 0
+        Nothing => 0
+
+assertAlwaysZero2 : (x : Maybe a) -> (alwaysZero2 x = 0)
+assertAlwaysZero2 x = ?assertAlwaysZero2_rhs

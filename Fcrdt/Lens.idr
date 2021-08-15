@@ -49,9 +49,12 @@ lemmaDeleteAfterInsert :
     (key: Nat) ->
     (value: b) ->
     (map: List (Nat, b)) ->
-    map = (delete key (insert key value map))
-lemmaDeleteAfterInsert key value [] = rewrite lemmaNatEquality key in Refl
-lemmaDeleteAfterInsert key value ((k, v) :: xs) = ?todo
+    (get key map = Nothing) ->
+    (delete key (insert key value map)) = map
+lemmaDeleteAfterInsert key value [] prf = rewrite lemmaNatEquality key in Refl
+lemmaDeleteAfterInsert key value ((k, v) :: xs) prf =
+    -- rewrite lemmaDeleteAfterInsert in
+    ?lemmaDeleteAfterInsert2 --value k v xs key prf
 
 data Kind =
       BooleanKind
@@ -331,7 +334,7 @@ assertReverseSchema (LensMap x) SFalse prf = ?assertReverseSchema_rhs_24
 assertReverseSchema (LensMap _) SBoolean Refl impossible
 assertReverseSchema (LensMap _) SNumber Refl impossible
 assertReverseSchema (LensMap _) SText Refl impossible
-assertReverseSchema (LensMap x) (SArray y z) prf = ?assertReverseSchema_rhs_28
+assertReverseSchema (LensMap l) (SArray allowEmpty schema) prf = ?assertReverseSchemaLensMap
 assertReverseSchema (LensMap _) (SObject _) Refl impossible
 
 reverseValue : Lens -> Value -> Maybe Value
@@ -382,6 +385,7 @@ assertReverseValue HeadProperty (Boolean _) Refl impossible
 assertReverseValue HeadProperty (Number _) Refl impossible
 assertReverseValue HeadProperty (Text _) Refl impossible
 assertReverseValue HeadProperty (Array []) Refl impossible
+-- TODO: how to weaken the reversability condition
 assertReverseValue HeadProperty (Array (x :: xs)) prf = ?hole
 assertReverseValue HeadProperty (Object _) Refl impossible
 assertReverseValue (LensIn _ _) (Boolean _) Refl impossible
@@ -492,7 +496,7 @@ schemaJustImpliesValueJust (LensMap _) SText _ _ Refl impossible
 schemaJustImpliesValueJust (LensMap _) (SArray _ _) (Boolean _) Refl _ impossible
 schemaJustImpliesValueJust (LensMap _) (SArray _ _) (Number _) Refl _ impossible
 schemaJustImpliesValueJust (LensMap _) (SArray _ _) (Text _) Refl _ impossible
-schemaJustImpliesValueJust (LensMap x) (SArray y z) (Array xs) prf prf1 = ?schemaJustImpliesValueJust_rhs_19
+schemaJustImpliesValueJust (LensMap l) (SArray allowEmpty schema) (Array xs) prf prf1 = ?schemaJustImpliesValueJust_rhs_19
 schemaJustImpliesValueJust (LensMap _) (SArray _ _) (Object _) Refl _ impossible
 schemaJustImpliesValueJust (LensMap _) (SObject _) _ _ Refl impossible
 

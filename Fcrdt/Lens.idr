@@ -1,5 +1,6 @@
 module Fcrdt.Lens
 
+
 import Data.List
 import Data.Maybe
 import Data.SortedMap
@@ -215,7 +216,9 @@ applyLensValue (PlungeProperty hp p) (Object ps) =
         _ => Nothing
 applyLensValue (PlungeProperty _ _) _ = Nothing
 applyLensValue (WrapProperty x) v = Just (Array (v :: Nil))
-applyLensValue (HeadProperty x) (Array (v :: vs)) = Just v
+-- not very useful transform if it only works with one array element
+-- need to revisit the reversability property
+applyLensValue (HeadProperty x) (Array (v :: Nil)) = Just v
 applyLensValue (HeadProperty _) _ = Nothing
 applyLensValue (LensIn x l) (Object ps) =
     case lookup x ps of
@@ -261,12 +264,57 @@ reverseValue l v =
         Just v => applyLensValue (reverseLens l) v
         Nothing => Nothing
 
-total assertReverseValue :
+assertReverseValue :
     (lens: Lens) ->
     (value: Value) ->
-    (Dec (isJust (applyLensValue lens value) = True)) ->
-    (Dec ((reverseValue lens value) = Just value))
-assertReverseValue lens value = ?z
+    (isJust (applyLensValue lens value) = True) ->
+    (reverseValue lens value = Just value)
+assertReverseValue (AddProperty _ _ _) (Boolean _) Refl impossible
+assertReverseValue (AddProperty _ _ _) (Number _) Refl impossible
+assertReverseValue (AddProperty _ _ _) (Text _) Refl impossible
+assertReverseValue (AddProperty _ _ _) (Array _) Refl impossible
+assertReverseValue (AddProperty x False z) (Object w) prf = ?assertReverseValueAddProperty
+assertReverseValue (AddProperty x True z) (Object w) prf = ?assertReverseValueAddPropertyRequired
+assertReverseValue (RemoveProperty _ _ _) (Boolean _) Refl impossible
+assertReverseValue (RemoveProperty _ _ _) (Number _) Refl impossible
+assertReverseValue (RemoveProperty _ _ _) (Text _) Refl impossible
+assertReverseValue (RemoveProperty _ _ _) (Array _) Refl impossible
+assertReverseValue (RemoveProperty x False z) (Object w) prf = ?assertReverseValueRemoveProperty
+assertReverseValue (RemoveProperty x True z) (Object w) prf = ?assertReverseValueRemovePropertyRequired
+assertReverseValue (RenameProperty _ _) (Boolean _) Refl impossible
+assertReverseValue (RenameProperty _ _) (Number _) Refl impossible
+assertReverseValue (RenameProperty _ _) (Text _) Refl impossible
+assertReverseValue (RenameProperty _ _) (Array _) Refl impossible
+assertReverseValue (RenameProperty x y) (Object z) prf = ?assertReverseValueRenameProperty
+assertReverseValue (HoistProperty _ _) (Boolean _) Refl impossible
+assertReverseValue (HoistProperty _ _) (Number _) Refl impossible
+assertReverseValue (HoistProperty _ _) (Text _) Refl impossible
+assertReverseValue (HoistProperty _ _) (Array _) Refl impossible
+assertReverseValue (HoistProperty x y) (Object z) prf = ?assertReverseValueHoistProperty
+assertReverseValue (PlungeProperty _ _) (Boolean _) Refl impossible
+assertReverseValue (PlungeProperty _ _) (Number _) Refl impossible
+assertReverseValue (PlungeProperty _ _) (Text _) Refl impossible
+assertReverseValue (PlungeProperty _ _) (Array _) Refl impossible
+assertReverseValue (PlungeProperty x y) (Object z) prf = ?assertReverseValuePlungeProperty
+assertReverseValue (WrapProperty x) value prf  = Refl
+assertReverseValue (HeadProperty _) (Boolean _) Refl impossible
+assertReverseValue (HeadProperty _) (Number _) Refl impossible
+assertReverseValue (HeadProperty _) (Text _) Refl impossible
+assertReverseValue (HeadProperty _) (Array []) Refl impossible
+assertReverseValue (HeadProperty _) (Array (x :: [])) Refl = Refl
+assertReverseValue (HeadProperty _) (Array (_ :: (_ :: _))) Refl impossible
+assertReverseValue (HeadProperty _) (Object _) Refl impossible
+assertReverseValue (LensIn _ _) (Boolean _) Refl impossible
+assertReverseValue (LensIn _ _) (Number _) Refl impossible
+assertReverseValue (LensIn _ _) (Text _) Refl impossible
+assertReverseValue (LensIn _ _) (Array _) Refl impossible
+assertReverseValue (LensIn key lens) (Object props) prf = ?assertReverseValueLensIn
+assertReverseValue (LensMap _) (Boolean _) Refl impossible
+assertReverseValue (LensMap _) (Number _) Refl impossible
+assertReverseValue (LensMap _) (Text _) Refl impossible
+assertReverseValue (LensMap lens) (Array []) Refl = Refl
+assertReverseValue (LensMap lens) (Array (x :: xs)) prf = ?assertReverseValueLensMap
+assertReverseValue (LensMap _) (Object _) Refl impossible
 
 {-total assertLens :
     (lens: Lens) ->

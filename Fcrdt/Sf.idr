@@ -107,18 +107,28 @@ plus_commutes (S k) b =
 alwaysZero : (a, b : Nat) -> Nat
 alwaysZero a b = if a == b then 0 else 0
 
+boolToEither : (b : Bool) -> Either (b = True) (b = False)
+boolToEither False = Right Refl
+boolToEither True = Left Refl
+
 assertAlwaysZero_1 : (a : Nat) -> (b : Nat) -> Either (a == b = True) (a == b = False) -> alwaysZero a b = 0
 assertAlwaysZero_1 a b (Left prf) = rewrite prf in Refl
 assertAlwaysZero_1 a b (Right prf) = rewrite prf in Refl
 
 assertAlwaysZero_2 : (a, b : Nat) -> Either (a == b = True) (a == b = False)
-assertAlwaysZero_2 0 0 = Left Refl
+assertAlwaysZero_2 a b = boolToEither (a == b)
+{-assertAlwaysZero_2 0 0 = Left Refl
 assertAlwaysZero_2 0 (S k) = Right Refl
 assertAlwaysZero_2 (S k) 0 = Right Refl
-assertAlwaysZero_2 (S k) (S j) = assertAlwaysZero_2 k j
+assertAlwaysZero_2 (S k) (S j) = assertAlwaysZero_2 k j-}
 
 assertAlwaysZero : (a, b : Nat) -> (alwaysZero a b = 0)
-assertAlwaysZero a b = assertAlwaysZero_1 a b (assertAlwaysZero_2 a b)
+assertAlwaysZero a b =
+    case boolToEither (a == b) of
+        Left prf => rewrite prf in Refl
+        Right prf => rewrite prf in Refl
+--assertAlwaysZero a b = assertAlwaysZero_1 a b (boolToEither (a == b))
+
 
 
 alwaysZero2 : Maybe a -> Nat
@@ -128,4 +138,5 @@ alwaysZero2 a =
         Nothing => 0
 
 assertAlwaysZero2 : (x : Maybe a) -> (alwaysZero2 x = 0)
-assertAlwaysZero2 x = ?assertAlwaysZero2_rhs
+assertAlwaysZero2 Nothing = Refl
+assertAlwaysZero2 (Just x) = Refl

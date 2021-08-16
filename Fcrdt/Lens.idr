@@ -473,8 +473,12 @@ validateLensed l s v =
         (Just s, Just v) => validate s v
         _ => False
 
+andImpliesA' : (a : Bool) -> (b : Lazy Bool) -> (a && b = True) -> a = True
+andImpliesA' False b prf = prf
+andImpliesA' True b prf = Refl
+
 andImpliesA : (a && b = True) -> a = True
-andImpliesA prf = ?todo
+andImpliesA prf = irrelevantEq $ andImpliesA' a b prf
 
 assertLensLensMap : (IsJust (applyLensSchema (LensMap lens) schema)) -> (IsJust (applyLensSchema lens schema))
 assertLensLensMap x = ?assertLensLensMap_rhs

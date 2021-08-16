@@ -373,80 +373,80 @@ schemaJustImpliesValueJust :
     (schema: Schema) ->
     (value: Value) ->
     (validate schema value = True) ->
-    (isJust (applyLensSchema lens schema) = True) ->
-    (isJust (applyLensValue lens value) = True)
+    (IsJust (applyLensSchema lens schema)) ->
+    (IsJust (applyLensValue lens value))
 
-schemaJustImpliesValueJust (AddProperty _ _ _) SFalse _ _ Refl impossible
-schemaJustImpliesValueJust (AddProperty _ _ _) SBoolean _ _ Refl impossible
-schemaJustImpliesValueJust (AddProperty _ _ _) SNumber _ _ Refl impossible
-schemaJustImpliesValueJust (AddProperty _ _ _) SText _ _ Refl impossible
-schemaJustImpliesValueJust (AddProperty _ _ _) (SArray _ _) _ _ Refl impossible
+schemaJustImpliesValueJust (AddProperty _ _ _) SFalse _ _ ItIsJust impossible
+schemaJustImpliesValueJust (AddProperty _ _ _) SBoolean _ _ ItIsJust impossible
+schemaJustImpliesValueJust (AddProperty _ _ _) SNumber _ _ ItIsJust impossible
+schemaJustImpliesValueJust (AddProperty _ _ _) SText _ _ ItIsJust impossible
+schemaJustImpliesValueJust (AddProperty _ _ _) (SArray _ _) _ _ ItIsJust impossible
 schemaJustImpliesValueJust (AddProperty _ _ _) (SObject _) (Boolean _) Refl _ impossible
 schemaJustImpliesValueJust (AddProperty _ _ _) (SObject _) (Number _) Refl _ impossible
 schemaJustImpliesValueJust (AddProperty _ _ _) (SObject _) (Text _) Refl _ impossible
 schemaJustImpliesValueJust (AddProperty _ _ _) (SObject _) (Array _) Refl _ impossible
-schemaJustImpliesValueJust (AddProperty _ _ _) (SObject []) (Object []) _ _ = Refl
-schemaJustImpliesValueJust (AddProperty n r v) (SObject []) (Object (x :: xs)) prf Refl = ?schemaJustImpliesValueJust_rhs_40
-schemaJustImpliesValueJust (AddProperty _ _ _) (SObject (x :: xs)) (Object []) _ _ = Refl
+schemaJustImpliesValueJust (AddProperty _ _ _) (SObject []) (Object []) _ _ = ItIsJust
+schemaJustImpliesValueJust (AddProperty n r v) (SObject []) (Object (x :: xs)) prf ItIsJust = ?schemaJustImpliesValueJust_rhs_40
+schemaJustImpliesValueJust (AddProperty _ _ _) (SObject (x :: xs)) (Object []) _ _ = ItIsJust
 schemaJustImpliesValueJust (AddProperty n r v) (SObject (x :: xs)) (Object (y :: ys)) prf prf1 = ?schemaJustImpliesValueJust_rhs_39
-schemaJustImpliesValueJust (RemoveProperty _ _ _) SFalse _ _ Refl impossible
-schemaJustImpliesValueJust (RemoveProperty _ _ _) SBoolean _ _ Refl impossible
-schemaJustImpliesValueJust (RemoveProperty _ _ _) SNumber _ _ Refl impossible
-schemaJustImpliesValueJust (RemoveProperty _ _ _) SText _ _ Refl impossible
-schemaJustImpliesValueJust (RemoveProperty _ _ _) (SArray _ _) _ _ Refl impossible
+schemaJustImpliesValueJust (RemoveProperty _ _ _) SFalse _ _ ItIsJust impossible
+schemaJustImpliesValueJust (RemoveProperty _ _ _) SBoolean _ _ ItIsJust impossible
+schemaJustImpliesValueJust (RemoveProperty _ _ _) SNumber _ _ ItIsJust impossible
+schemaJustImpliesValueJust (RemoveProperty _ _ _) SText _ _ ItIsJust impossible
+schemaJustImpliesValueJust (RemoveProperty _ _ _) (SArray _ _) _ _ ItIsJust impossible
 schemaJustImpliesValueJust (RemoveProperty _ _ _) (SObject _) (Boolean _) Refl _ impossible
 schemaJustImpliesValueJust (RemoveProperty _ _ _) (SObject _) (Number _) Refl _ impossible
 schemaJustImpliesValueJust (RemoveProperty _ _ _) (SObject _) (Text _) Refl _ impossible
 schemaJustImpliesValueJust (RemoveProperty _ _ _) (SObject _) (Array _) Refl _ impossible
 schemaJustImpliesValueJust (RemoveProperty x y z) (SObject w) (Object v) prf prf1 = ?schemaJustImpliesValueJust_rhs_28
-schemaJustImpliesValueJust (RenameProperty _ _) SFalse _ _ Refl impossible
-schemaJustImpliesValueJust (RenameProperty _ _) SBoolean _ _ Refl impossible
-schemaJustImpliesValueJust (RenameProperty _ _) SNumber _ _ Refl impossible
-schemaJustImpliesValueJust (RenameProperty _ _) SText _ _ Refl impossible
-schemaJustImpliesValueJust (RenameProperty _ _) (SArray _ _) _ _ Refl impossible
+schemaJustImpliesValueJust (RenameProperty _ _) SFalse _ _ ItIsJust impossible
+schemaJustImpliesValueJust (RenameProperty _ _) SBoolean _ _ ItIsJust impossible
+schemaJustImpliesValueJust (RenameProperty _ _) SNumber _ _ ItIsJust impossible
+schemaJustImpliesValueJust (RenameProperty _ _) SText _ _ ItIsJust impossible
+schemaJustImpliesValueJust (RenameProperty _ _) (SArray _ _) _ _ ItIsJust impossible
 schemaJustImpliesValueJust (RenameProperty _ _) (SObject _) (Boolean _) Refl _ impossible
 schemaJustImpliesValueJust (RenameProperty _ _) (SObject _) (Number _) Refl _ impossible
 schemaJustImpliesValueJust (RenameProperty _ _) (SObject _) (Text _) Refl _ impossible
 schemaJustImpliesValueJust (RenameProperty _ _) (SObject _) (Array _) Refl _ impossible
 schemaJustImpliesValueJust (RenameProperty x y) (SObject z) (Object w) prf prf1 = ?schemaJustImpliesValueJust_rhs_29
-schemaJustImpliesValueJust (HoistProperty _ _) SFalse _ _ Refl impossible
-schemaJustImpliesValueJust (HoistProperty _ _) SBoolean _ _ Refl impossible
-schemaJustImpliesValueJust (HoistProperty _ _) SNumber _ _ Refl impossible
-schemaJustImpliesValueJust (HoistProperty _ _) SText _ _ Refl impossible
-schemaJustImpliesValueJust (HoistProperty _ _) (SArray _ _) _ _ Refl impossible
+schemaJustImpliesValueJust (HoistProperty _ _) SFalse _ _ ItIsJust impossible
+schemaJustImpliesValueJust (HoistProperty _ _) SBoolean _ _ ItIsJust impossible
+schemaJustImpliesValueJust (HoistProperty _ _) SNumber _ _ ItIsJust impossible
+schemaJustImpliesValueJust (HoistProperty _ _) SText _ _ ItIsJust impossible
+schemaJustImpliesValueJust (HoistProperty _ _) (SArray _ _) _ _ ItIsJust impossible
 schemaJustImpliesValueJust (HoistProperty _ _) (SObject _) (Boolean _) Refl _ impossible
 schemaJustImpliesValueJust (HoistProperty _ _) (SObject _) (Number _) Refl _ impossible
 schemaJustImpliesValueJust (HoistProperty _ _) (SObject _) (Text _) Refl _ impossible
 schemaJustImpliesValueJust (HoistProperty _ _) (SObject _) (Array _) Refl _ impossible
 schemaJustImpliesValueJust (HoistProperty x y) (SObject z) (Object w) prf prf1 = ?schemaJustImpliesValueJust_rhs_30
-schemaJustImpliesValueJust (PlungeProperty _ _) SFalse _ _ Refl impossible
-schemaJustImpliesValueJust (PlungeProperty _ _) SBoolean _ _ Refl impossible
-schemaJustImpliesValueJust (PlungeProperty _ _) SNumber _ _ Refl impossible
-schemaJustImpliesValueJust (PlungeProperty _ _) SText _ _ Refl impossible
-schemaJustImpliesValueJust (PlungeProperty _ _) (SArray _ _) _ _ Refl impossible
+schemaJustImpliesValueJust (PlungeProperty _ _) SFalse _ _ ItIsJust impossible
+schemaJustImpliesValueJust (PlungeProperty _ _) SBoolean _ _ ItIsJust impossible
+schemaJustImpliesValueJust (PlungeProperty _ _) SNumber _ _ ItIsJust impossible
+schemaJustImpliesValueJust (PlungeProperty _ _) SText _ _ ItIsJust impossible
+schemaJustImpliesValueJust (PlungeProperty _ _) (SArray _ _) _ _ ItIsJust impossible
 schemaJustImpliesValueJust (PlungeProperty _ _) (SObject _) (Boolean _) Refl _ impossible
 schemaJustImpliesValueJust (PlungeProperty _ _) (SObject _) (Number _) Refl _ impossible
 schemaJustImpliesValueJust (PlungeProperty _ _) (SObject _) (Text _) Refl _ impossible
 schemaJustImpliesValueJust (PlungeProperty _ _) (SObject _) (Array _) Refl _ impossible
 schemaJustImpliesValueJust (PlungeProperty x y) (SObject z) (Object w) prf prf1 = ?schemaJustImpliesValueJust_rhs_31
-schemaJustImpliesValueJust WrapProperty _ _ _ _ = Refl
-schemaJustImpliesValueJust HeadProperty SFalse _ _ Refl impossible
-schemaJustImpliesValueJust HeadProperty SBoolean _ _ Refl impossible
-schemaJustImpliesValueJust HeadProperty SNumber _ _ Refl impossible
-schemaJustImpliesValueJust HeadProperty SText _ _ Refl impossible
+schemaJustImpliesValueJust WrapProperty _ _ _ _ = ItIsJust
+schemaJustImpliesValueJust HeadProperty SFalse _ _ ItIsJust impossible
+schemaJustImpliesValueJust HeadProperty SBoolean _ _ ItIsJust impossible
+schemaJustImpliesValueJust HeadProperty SNumber _ _ ItIsJust impossible
+schemaJustImpliesValueJust HeadProperty SText _ _ ItIsJust impossible
 schemaJustImpliesValueJust HeadProperty (SArray _ _) (Boolean _) Refl _ impossible
 schemaJustImpliesValueJust HeadProperty (SArray _ _) (Number _) Refl _ impossible
 schemaJustImpliesValueJust HeadProperty (SArray _ _) (Text _) Refl _ impossible
 schemaJustImpliesValueJust HeadProperty (SArray False _) (Array []) Refl _ impossible
-schemaJustImpliesValueJust HeadProperty (SArray False _) (Array (x :: xs)) _ _ = Refl
-schemaJustImpliesValueJust HeadProperty (SArray True _) (Array _) _ Refl impossible
+schemaJustImpliesValueJust HeadProperty (SArray False _) (Array (x :: xs)) _ _ = ItIsJust
+schemaJustImpliesValueJust HeadProperty (SArray True _) (Array _) _ ItIsJust impossible
 schemaJustImpliesValueJust HeadProperty (SArray _ _) (Object _) Refl _ impossible
-schemaJustImpliesValueJust HeadProperty (SObject _) _ _ Refl impossible
-schemaJustImpliesValueJust (LensIn _ _) SFalse _ _ Refl impossible
-schemaJustImpliesValueJust (LensIn _ _) SBoolean _ _ Refl impossible
-schemaJustImpliesValueJust (LensIn _ _) SNumber _ _ Refl impossible
-schemaJustImpliesValueJust (LensIn _ _) SText _ _ Refl impossible
-schemaJustImpliesValueJust (LensIn _ _) (SArray _ _) _ _ Refl impossible
+schemaJustImpliesValueJust HeadProperty (SObject _) _ _ ItIsJust impossible
+schemaJustImpliesValueJust (LensIn _ _) SFalse _ _ ItIsJust impossible
+schemaJustImpliesValueJust (LensIn _ _) SBoolean _ _ ItIsJust impossible
+schemaJustImpliesValueJust (LensIn _ _) SNumber _ _ ItIsJust impossible
+schemaJustImpliesValueJust (LensIn _ _) SText _ _ ItIsJust impossible
+schemaJustImpliesValueJust (LensIn _ _) (SArray _ _) _ _ ItIsJust impossible
 schemaJustImpliesValueJust (LensIn _ _) (SObject _) (Boolean _) Refl _ impossible
 schemaJustImpliesValueJust (LensIn _ _) (SObject _) (Number _) Refl _ impossible
 schemaJustImpliesValueJust (LensIn _ _) (SObject _) (Text _) Refl _ impossible
@@ -457,15 +457,15 @@ schemaJustImpliesValueJust (LensMap _) SFalse (Number _) Refl _ impossible
 schemaJustImpliesValueJust (LensMap _) SFalse (Text _) Refl _ impossible
 schemaJustImpliesValueJust (LensMap x) SFalse (Array xs) prf prf1 = ?schemaJustImpliesValueJust_rhs_15
 schemaJustImpliesValueJust (LensMap _) SFalse (Object _) Refl _ impossible
-schemaJustImpliesValueJust (LensMap _) SBoolean _ _ Refl impossible
-schemaJustImpliesValueJust (LensMap _) SNumber _ _ Refl impossible
-schemaJustImpliesValueJust (LensMap _) SText _ _ Refl impossible
+schemaJustImpliesValueJust (LensMap _) SBoolean _ _ ItIsJust impossible
+schemaJustImpliesValueJust (LensMap _) SNumber _ _ ItIsJust impossible
+schemaJustImpliesValueJust (LensMap _) SText _ _ ItIsJust impossible
 schemaJustImpliesValueJust (LensMap _) (SArray _ _) (Boolean _) Refl _ impossible
 schemaJustImpliesValueJust (LensMap _) (SArray _ _) (Number _) Refl _ impossible
 schemaJustImpliesValueJust (LensMap _) (SArray _ _) (Text _) Refl _ impossible
 schemaJustImpliesValueJust (LensMap l) (SArray allowEmpty schema) (Array xs) prf prf1 = ?schemaJustImpliesValueJust_rhs_19
 schemaJustImpliesValueJust (LensMap _) (SArray _ _) (Object _) Refl _ impossible
-schemaJustImpliesValueJust (LensMap _) (SObject _) _ _ Refl impossible
+schemaJustImpliesValueJust (LensMap _) (SObject _) _ _ ItIsJust impossible
 
 validateLensed : Lens -> Schema -> Value -> Bool
 validateLensed l s v =
@@ -476,13 +476,16 @@ validateLensed l s v =
 andImpliesA : (a && b = True) -> a = True
 andImpliesA prf = ?todo
 
+assertLensLensMap : (IsJust (applyLensSchema (LensMap lens) schema)) -> (IsJust (applyLensSchema lens schema))
+assertLensLensMap x = ?assertLensLensMap_rhs
+
 ||| Transforming a valid value must result in a valid value
 assertLens :
     (lens: Lens) ->
     (schema: Schema) ->
     (value: Value) ->
     (validate schema value = True) ->
-    (isJust (applyLensSchema lens schema) = True) ->
+    (IsJust (applyLensSchema lens schema)) ->
     (validateLensed lens schema value = True)
 assertLens (AddProperty k x y) schema value prf prf1 = ?assertLens_rhs_1
 assertLens (RemoveProperty k x y) schema value prf prf1 = ?assertLens_rhs_2
@@ -496,19 +499,23 @@ assertLens WrapProperty SText _ prf _ = rewrite prf in Refl
 assertLens WrapProperty (SArray x y) _ prf _ = rewrite prf in Refl
 assertLens WrapProperty (SObject xs) _ prf _ = rewrite prf in Refl
 assertLens HeadProperty SFalse _ Refl _ impossible
-assertLens HeadProperty SBoolean _ _ Refl impossible
-assertLens HeadProperty SNumber _ _ Refl impossible
-assertLens HeadProperty SText _ _ Refl impossible
+assertLens HeadProperty SBoolean _ _ ItIsJust impossible
+assertLens HeadProperty SNumber _ _ ItIsJust impossible
+assertLens HeadProperty SText _ _ ItIsJust impossible
 assertLens HeadProperty (SArray False _) (Boolean _) Refl _ impossible
 assertLens HeadProperty (SArray False _) (Number _) Refl _ impossible
 assertLens HeadProperty (SArray False _) (Text _) Refl _ impossible
 assertLens HeadProperty (SArray False _) (Array []) Refl _ impossible
-assertLens HeadProperty (SArray False s) (Array (x :: xs)) prf Refl = andImpliesA prf
+assertLens HeadProperty (SArray False s) (Array (x :: xs)) prf _ = andImpliesA prf
 assertLens HeadProperty (SArray False _) (Object _) Refl _ impossible
-assertLens HeadProperty (SArray True _) _ _ Refl impossible
-assertLens HeadProperty (SObject _) _ _ Refl impossible
+assertLens HeadProperty (SArray True _) _ _ ItIsJust impossible
+assertLens HeadProperty (SObject _) _ _ ItIsJust impossible
 assertLens (LensIn k x) schema value prf prf1 = ?assertLens_rhs_8
-assertLens (LensMap x) schema value prf prf1 = ?assertLens_rhs_9
+assertLens (LensMap lens) schema value prf isj =
+    let
+        isj = assertLensLensMap isj
+        ind = assertLens lens schema value prf isj
+    in ?assertLens_rhs_9
 
 stripPostfix : Eq a => List a -> List a -> (List a, List a)
 stripPostfix (a::as) (b::bs) =

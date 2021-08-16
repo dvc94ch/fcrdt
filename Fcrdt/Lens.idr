@@ -444,6 +444,9 @@ validateLensed l s v =
         (Just s, Just v) => validate s v
         _ => False
 
+andImpliesA : (a && b = True) -> a = True
+andImpliesA prf = ?todo
+
 ||| Transforming a valid value must result in a valid value
 assertLens :
     (lens: Lens) ->
@@ -467,7 +470,13 @@ assertLens HeadProperty SFalse _ Refl _ impossible
 assertLens HeadProperty SBoolean _ _ Refl impossible
 assertLens HeadProperty SNumber _ _ Refl impossible
 assertLens HeadProperty SText _ _ Refl impossible
-assertLens HeadProperty (SArray x y) value prf prf1 = ?assertLens_rhs_14
+assertLens HeadProperty (SArray False _) (Boolean _) Refl _ impossible
+assertLens HeadProperty (SArray False _) (Number _) Refl _ impossible
+assertLens HeadProperty (SArray False _) (Text _) Refl _ impossible
+assertLens HeadProperty (SArray False _) (Array []) Refl _ impossible
+assertLens HeadProperty (SArray False s) (Array (x :: xs)) prf Refl = andImpliesA prf
+assertLens HeadProperty (SArray False _) (Object _) Refl _ impossible
+assertLens HeadProperty (SArray True _) _ _ Refl impossible
 assertLens HeadProperty (SObject _) _ _ Refl impossible
 assertLens (LensIn k x) schema value prf prf1 = ?assertLens_rhs_8
 assertLens (LensMap x) schema value prf prf1 = ?assertLens_rhs_9

@@ -146,4 +146,4 @@ alwaysZero3 x = if x then 0 else 0
 
 assertAlwaysZero3 : (b: Bool) -> alwaysZero3 b = 0
 assertAlwaysZero3 False = Refl
-assertAlwaysZero3 True = ?assertAlwaysZero3_rhs_2
+assertAlwaysZero3 True = Refl

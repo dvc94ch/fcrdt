@@ -140,3 +140,10 @@ alwaysZero2 a =
 assertAlwaysZero2 : (x : Maybe a) -> (alwaysZero2 x = 0)
 assertAlwaysZero2 Nothing = Refl
 assertAlwaysZero2 (Just x) = Refl
+
+alwaysZero3 : Bool -> Nat
+alwaysZero3 x = if x then 0 else 0
+
+assertAlwaysZero3 : (b: Bool) -> alwaysZero3 b = 0
+assertAlwaysZero3 False = Refl
+assertAlwaysZero3 True = ?assertAlwaysZero3_rhs_2

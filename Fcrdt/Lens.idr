@@ -452,7 +452,25 @@ assertLens :
     (validate schema value = True) ->
     (isJust (applyLensSchema lens schema) = True) ->
     (validateLensed lens schema value = True)
-assertLens lens schema value prf prf1 = ?assertLens_rhs
+assertLens (AddProperty k x y) schema value prf prf1 = ?assertLens_rhs_1
+assertLens (RemoveProperty k x y) schema value prf prf1 = ?assertLens_rhs_2
+assertLens (RenameProperty k j) schema value prf prf1 = ?assertLens_rhs_3
+assertLens (HoistProperty k j) schema value prf prf1 = ?assertLens_rhs_4
+assertLens (PlungeProperty k j) schema value prf prf1 = ?assertLens_rhs_5
+assertLens WrapProperty SFalse _ Refl _ impossible
+assertLens WrapProperty SBoolean _ prf _ = rewrite prf in Refl
+assertLens WrapProperty SNumber _ prf _ = rewrite prf in Refl
+assertLens WrapProperty SText _ prf _ = rewrite prf in Refl
+assertLens WrapProperty (SArray x y) _ prf _ = rewrite prf in Refl
+assertLens WrapProperty (SObject xs) _ prf _ = rewrite prf in Refl
+assertLens HeadProperty SFalse _ Refl _ impossible
+assertLens HeadProperty SBoolean _ _ Refl impossible
+assertLens HeadProperty SNumber _ _ Refl impossible
+assertLens HeadProperty SText _ _ Refl impossible
+assertLens HeadProperty (SArray x y) value prf prf1 = ?assertLens_rhs_14
+assertLens HeadProperty (SObject _) _ _ Refl impossible
+assertLens (LensIn k x) schema value prf prf1 = ?assertLens_rhs_8
+assertLens (LensMap x) schema value prf prf1 = ?assertLens_rhs_9
 
 stripPostfix : Eq a => List a -> List a -> (List a, List a)
 stripPostfix (a::as) (b::bs) =

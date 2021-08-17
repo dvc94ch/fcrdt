@@ -5,7 +5,6 @@ sourcedir = "."
 depends = base, contrib
 
 modules =
-    Fcrdt.Crdt,
     Fcrdt.Lens,
     Fcrdt.Main,
     Fcrdt.Sf

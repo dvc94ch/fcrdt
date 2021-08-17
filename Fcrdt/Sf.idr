@@ -66,7 +66,7 @@ bin_to_nat (B2 x) = (bin_to_nat x) * 2
 bin_to_nat (B2P1 x) = (bin_to_nat x) * 2 + 1
 
 test_bin_to_nat_0 : bin_to_nat (incr (incr (incr (incr BZ)))) = 4
-test_bin_to_nat_0 = ?test_bin_to_nat_0_rhs
+test_bin_to_nat_0 = Refl
 
 dot_op : Nat
 dot_op = (bin_to_nat . incr . incr) BZ
@@ -79,10 +79,7 @@ test_bin_to_nat_1 = do
     (putStrLn . show . bin_to_nat . incr . incr . incr . incr) BZ
     (putStrLn . show . bin_to_nat . incr . incr . incr . incr . incr) BZ
 
-proof_bin : (b : Bin) -> bin_to_nat (incr b) = S (bin_to_nat b)
-proof_bin BZ = Refl
-proof_bin (B2 x) = ?proof_bin_rhs_2
-proof_bin (B2P1 x) = ?proof_bin_rhs_3
+--proof_bin : (b : Bin) -> bin_to_nat (incr b) = S (bin_to_nat b)
 
 plus_n_Z : (n : Nat) -> n = n + 0
 plus_n_Z 0 = Refl
@@ -131,15 +128,14 @@ assertAlwaysZero a b =
 
 
 
-alwaysZero2 : Maybe a -> Nat
-alwaysZero2 a =
-    case a of
+alwaysZero2 : (Maybe a -> Maybe a) -> (Maybe a) -> Nat
+alwaysZero2 f a =
+    case f a of
         Just b => 0
         Nothing => 0
 
-assertAlwaysZero2 : (x : Maybe a) -> (alwaysZero2 x = 0)
-assertAlwaysZero2 Nothing = Refl
-assertAlwaysZero2 (Just x) = Refl
+--assertAlwaysZero2 : (f: Maybe a -> Maybe a) -> (x : Maybe a) -> (alwaysZero2 f x = 0)
+--assertAlwaysZero2 f x = ?assertAlwaysZero2_rhs
 
 alwaysZero3 : Bool -> Nat
 alwaysZero3 x = if x then 0 else 0
@@ -147,3 +143,44 @@ alwaysZero3 x = if x then 0 else 0
 assertAlwaysZero3 : (b: Bool) -> alwaysZero3 b = 0
 assertAlwaysZero3 False = Refl
 assertAlwaysZero3 True = Refl
+
+--lemmaStringEquality : (s: String) -> s == s = True
+--lemmaStringEquality s = ?lemmaStringEquality_rhs
+
+--andImpliesA' : (a : Bool) -> (b : Lazy Bool) -> (a && b = True) -> a = True
+--andImpliesA' a b prf = ?andImpliesA_rhs
+
+--andImpliesA : (a && b = True) -> a = True
+--andImpliesA {a} {b} prf = andImpliesA' a b
+
+--andImpliesA : (a && b = True) -> a = True
+--andImpliesA prf = irrelevantEq $ andImpliesA' a b prf
+
+
+--rev_beq_key : (k1, k2: Key) -> k1 == k2 = True -> k1 = k2
+--rev_beq_key k1 k2 prf = ?rev_beq_key_rhs
+{-lemmaDeleteAfterInsert :
+    (key: Key) ->
+    (val: Value) ->
+    (obj: Obj) ->
+    (get obj key = Nothing) ->
+    (delete (insert obj key value) key = obj)
+lemmaDeleteAfterInsert key val Empty prf =
+    rewrite beq_key key in Refl
+lemmaDeleteAfterInsert key val (Entry k v obj) prf with (boolToEither (k == key))
+    lemmaDeleteAfterInsert key val (Entry k v obj) prf | (Left cond) =
+        let
+            cond2 = rev_beq_key k key cond
+            --prf = rewrite sym cond in prf
+        in rewrite cond in ?hole_1
+    lemmaDeleteAfterInsert key val (Entry k v obj) prf | (Right x) = ?hole_2-}
+    {-let
+        ind = lemmaDeleteAfterInsert key val obj
+    case boolToEither (k == key) of
+        Left cond =>
+            let
+                cond2 = rev_beq_key k key cond
+                prf2 = prf
+                --prf = rewrite cond2 in prf
+            in ?left -- let prf = rewrite sym cond in prf in ?left --obj v k key prf val cond --rewrite sym cond in ?left
+        Right cond => ?right -- rewrite sym cond in ?right-}

@@ -349,23 +349,23 @@ assertReverseSchema (AddProperty _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SNumber _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SText _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SArray _ _) ItIsJust impossible
-assertReverseSchema (AddProperty key) (SObject map) x with (get key map)
+assertReverseSchema (AddProperty key) (SObject map) x with (get key map) proof prf
     assertReverseSchema (AddProperty key) (SObject map) x | Nothing =
         rewrite update_eq map key (Just (False, SFalse)) in
-            let l = update_shadow map key in ?todo
-        --rewrite update_eq map in ?todo
---            let ldi = lemmaDeleteInsert map key (False, SFalse) in ?missing
+            rewrite update_shadow map key (Just (False, SFalse)) Nothing in
+                rewrite update_same map key Nothing prf in Refl
     assertReverseSchema (AddProperty key) (SObject map) prf | (Just y) = absurd $ prf
 assertReverseSchema (RemoveProperty _) SFalse ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SNumber _) ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SText _) ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SArray _ _) ItIsJust impossible
-assertReverseSchema (RemoveProperty key) (SObject map) x with (get key map)
+assertReverseSchema (RemoveProperty key) (SObject map) x with (get key map) proof prf
     assertReverseSchema (RemoveProperty key) (SObject map) x | Nothing = absurd $ x
-    assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, SFalse)) = ?todo3
---        rewrite lemmaGetDelete map key in
---            rewrite lemmaInsertDelete map key (False, SFalse) in ?hole_2
+    assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, SFalse)) =
+        rewrite update_eq map key Nothing in
+            rewrite update_shadow map key Nothing (Just (False, SFalse)) in
+                rewrite update_same map key (Just (False, SFalse)) prf in Refl
     assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, (SBoolean _))) = absurd $ x
     assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, (SNumber _))) = absurd $ x
     assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, (SText _))) = absurd $ x

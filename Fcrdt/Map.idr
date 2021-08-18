@@ -197,19 +197,31 @@ public export
 update_eq : (m : Map a) -> (k : Key) -> (v : Maybe a) -> get k (update k v m) = v
 update_eq (MkMap xs f) k v = rewrite beq_key k in Refl
 
+-- update_eqP : (m : Map a) -> (k : Key) -> (v : Maybe a) -> Reflect (
+
 public export
 update_neq : {x1, x2 : Key} -> (m : Map a) -> Not (x1 = x2) -> (get x2 $ update x1 v m) = get x2 m
 update_neq (MkMap xs f) prf = t_update_neq prf
 
 public export
+update_shadow : (m : Map a) -> (k : Key) -> (v1 : Maybe a) -> (v2 : Maybe a) -> (update k v2 $ update k v1 m) = update k v2 m
+update_shadow m k = ?update_shadow_rhs
+
+{-public export
 update_shadow : (m : Map a) -> (k : Key) -> (get k $ update k v2 $ update k v1 m) = (get k $ update k v2 m)
-update_shadow (MkMap xs f) k = rewrite beq_key k in Refl
+update_shadow (MkMap xs f) k = rewrite beq_key k in Refl-}
 
 public export
-update_same : (m : Map a) -> (get x m) = v -> (get x $ update x v m) = v
-update_same (MkMap xs f) prf = rewrite beq_key x in Refl
+update_same : (m : Map a) -> (k : Key) -> (v : Maybe a) -> (get k m) = v -> update k v m = m
+update_same m k v prf = ?update_same_rhs
+-- update_same (MkMap xs f) prf = rewrite beq_key x in Refl
 
 public export
+update_permute : (m : Map a) -> (k1 : Key) -> (k2 : Key) -> Not (k1 = k2) ->
+    (update k1 v1 $ update k2 v2 m) = (update k2 v2 $ update k1 v1 m)
+update_permute m k1 k2 f = ?update_permute_rhs
+
+{-public export
 update_permute : (m : Map a) -> (k : Key) -> (k1 : Key) -> (k2 : Key) -> Not (k1 = k2) ->
     (get k $ update k1 v1 $ update k2 v2 m) = (get k $ update k2 v2 $ update k1 v1 m)
 update_permute (MkMap xs f) k k1 k2 prf with ((beq_keyP k1 k), (beq_keyP k2 k))
@@ -220,4 +232,4 @@ update_permute (MkMap xs f) k k1 k2 prf with ((beq_keyP k1 k), (beq_keyP k2 k))
     update_permute (MkMap xs f) k k1 k2 prf | ((ReflectF g prf1), (ReflectT x prf2)) =
         rewrite prf1 in rewrite prf2 in Refl
     update_permute (MkMap xs f) k k1 k2 prf | ((ReflectF g prf1), (ReflectF f1 prf2)) =
-        rewrite prf1 in rewrite prf2 in rewrite prf1 in Refl
+        rewrite prf1 in rewrite prf2 in rewrite prf1 in Refl-}

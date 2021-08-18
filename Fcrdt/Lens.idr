@@ -81,21 +81,21 @@ validate (SText _) (Primitive (Text _)) = True
 validate (SText _) _ = False
 validate (SArray allowEmpty schema) (Array []) = allowEmpty
 validate (SArray _ schema) (Array (x :: xs)) =
-    assert_total (validate schema) x && assert_total (validate (SArray True schema) (Array xs))
+    assert_total (validate schema x) && assert_total (validate (SArray True schema) (Array xs))
 validate (SArray _ _) _ = False
-validate (SObject smap) (Object vmap) = validateProperties vmap smap && validateRequired smap vmap where
-    validateProperties : Map Value -> Map (Bool, Schema) -> Bool
-    validateProperties Empty _ = True
-    validateProperties (Entry key value vmap) smap with (get smap key)
-        validateProperties (Entry key value vmap) _ | Just (_, schema) =
-            assert_total (validate schema value) && validateProperties vmap smap
-        validateProperties (Entry _ _ _) _ | Nothing = False
-    validateRequired : Map (Bool, Schema) -> Map Value -> Bool
-    validateRequired Empty _ = True
-    validateRequired (Entry _ (False, _) smap) vmap = validateRequired smap vmap
-    validateRequired (Entry key (True, _) smap) vmap with (get vmap key)
-        validateRequired (Entry _ (True, _) smap) vmap | Just _ = validateRequired smap vmap
-        validateRequired (Entry _ (True, _) _) _ | Nothing = False
+validate (SObject smap) (Object vmap) = validateProperties (keys vmap) vmap smap && validateRequired (keys smap) smap vmap where
+    validateProperties : List Key -> Map Value -> Map (Bool, Schema) -> Bool
+    validateProperties [] _ _ = True
+    validateProperties (k :: ks) vmap smap with (get k vmap, get k smap)
+        validateProperties (_ :: _) _ _ | (Nothing, _) = False
+        validateProperties (_ :: _) _  _ | (_, Nothing) = False
+        validateProperties (k :: ks) vmap smap | (Just value , Just (_, schema)) =
+            assert_total (validate schema value) && validateProperties ks vmap smap
+    validateRequired : List Key -> Map (Bool, Schema) -> Map Value -> Bool
+    validateRequired [] _ _ = True
+    validateRequired (k :: ks) smap vmap with (get k smap, get k vmap)
+        validateRequired (k :: ks) smap vmap | (Just (True, _), Nothing) = False
+        validateRequired (k :: ks) smap vmap | (_, _) = validateRequired ks smap vmap
 validate (SObject _) _ = False
 
 data Lens =
@@ -159,53 +159,55 @@ applyLensSchema (Make (KPrimitive KBoolean)) SFalse = Just (SBoolean False)
 applyLensSchema (Make (KPrimitive KNumber)) SFalse = Just (SNumber 0)
 applyLensSchema (Make (KPrimitive KText)) SFalse = Just (SText [])
 applyLensSchema (Make KArray) SFalse = Just (SArray True SFalse)
-applyLensSchema (Make KObject) SFalse = Just (SObject Empty)
+applyLensSchema (Make KObject) SFalse = Just (SObject empty)
 applyLensSchema (Make _) _ = Nothing
 applyLensSchema (Destroy (KPrimitive KBoolean)) (SBoolean False) = Just SFalse
 applyLensSchema (Destroy (KPrimitive KNumber)) (SNumber 0) = Just SFalse
 applyLensSchema (Destroy (KPrimitive KText)) (SText []) = Just SFalse
 applyLensSchema (Destroy KArray) (SArray True SFalse) = Just SFalse
-applyLensSchema (Destroy KObject) (SObject Empty) = Just SFalse
+applyLensSchema (Destroy KObject) (SObject m) with (isEmpty m)
+    applyLensSchema (Destroy KObject) (SObject m) | True = Just SFalse
+    applyLensSchema (Destroy KObject) (SObject m) | False = Nothing
 applyLensSchema (Destroy _) _ = Nothing
 applyLensSchema (AddProperty key) (SObject smap) =
-    case get smap key of
+    case get key smap of
         Just _ => Nothing
-        Nothing => Just (SObject (insert smap key (False, SFalse)))
+        Nothing => Just (SObject (insert key (False, SFalse) smap))
 applyLensSchema (AddProperty _) _ = Nothing
 applyLensSchema (RemoveProperty key) (SObject smap) =
-    case get smap key of
-        Just (False, SFalse) => Just (SObject (delete smap key))
+    case get key smap of
+        Just (False, SFalse) => Just (SObject (delete key smap))
         _ => Nothing
 applyLensSchema (RemoveProperty _) _ = Nothing
 applyLensSchema (RenameProperty x y) (SObject smap) =
-    case (get smap x, get smap y) of
+    case (get x smap, get y smap) of
         (Just p, Nothing) =>
             let
-                smap = (delete smap x)
-                smap = (insert smap y p)
+                smap = (delete x smap)
+                smap = (insert y p smap)
             in Just (SObject smap)
         _ => Nothing
 applyLensSchema (RenameProperty _ _) _ = Nothing
 applyLensSchema (HoistProperty host target) (SObject smap) =
-    case get smap host of
+    case get host smap of
         Just (required, SObject host_smap) =>
-            (case get host_smap target of
+            (case get target host_smap of
                 Just p =>
                     let
-                        host_smap = delete host_smap target
-                        smap = insert smap host (required, SObject host_smap)
-                        smap = insert smap target p
+                        host_smap = delete target host_smap
+                        smap = insert host (required, SObject host_smap) smap
+                        smap = insert target p smap
                      in Just (SObject smap)
                 Nothing => Nothing)
         _ => Nothing
 applyLensSchema (HoistProperty _ _) _ = Nothing
 applyLensSchema (PlungeProperty host target) (SObject smap) =
-    case (get smap target, get smap host) of
+    case (get target smap, get host smap) of
         (Just (required, schema), Nothing) =>
             let
-                host_smap = insert Empty target (required, schema)
-                smap = delete smap target
-                smap = insert smap host (required, SObject host_smap)
+                host_smap = insert target (required, schema) empty
+                smap = delete target smap
+                smap = insert host (required, SObject host_smap) smap
             in Just (SObject smap)
         _ => Nothing
 applyLensSchema (PlungeProperty _ _) _ = Nothing
@@ -213,7 +215,7 @@ applyLensSchema WrapProperty schema = Just (SArray False schema)
 applyLensSchema HeadProperty (SArray False schema) = Just schema
 applyLensSchema HeadProperty _ = Nothing
 applyLensSchema (LensIn key lens) (SObject smap) =
-    case get smap key of
+    case get key smap of
         Just (_, schema) => applyLensSchema lens schema
         Nothing => Nothing
 applyLensSchema (LensIn _ _) _ = Nothing
@@ -221,10 +223,10 @@ applyLensSchema (LensMap lens) (SArray allowEmpty schema) =
     map (SArray allowEmpty) (applyLensSchema lens schema)
 applyLensSchema (LensMap _) _ = Nothing
 applyLensSchema (Require key r) (SObject smap) =
-    case get smap key of
+    case get key smap of
         Just (required, schema) =>
             if r == not required
-            then Just (SObject (insert smap key (r, schema)))
+            then Just (SObject (insert key (r, schema) smap))
             else Nothing
         Nothing => Nothing
 applyLensSchema (Require _ _) _ = Nothing
@@ -339,28 +341,31 @@ assertReverseSchema (Destroy KObject) (SBoolean _) ItIsJust impossible
 assertReverseSchema (Destroy KObject) (SNumber _) ItIsJust impossible
 assertReverseSchema (Destroy KObject) (SText _) ItIsJust impossible
 assertReverseSchema (Destroy KObject) (SArray _ _) ItIsJust impossible
-assertReverseSchema (Destroy KObject) (SObject Empty) _ = Refl
-assertReverseSchema (Destroy KObject) (SObject (Entry _ _ _)) ItIsJust impossible
+assertReverseSchema (Destroy KObject) (SObject m) prf with (isEmpty m)
+    assertReverseSchema (Destroy KObject) (SObject m) prf | False = absurd $ prf
+    assertReverseSchema (Destroy KObject) (SObject m) prf | True = ?goodEnoughToConvinceMe
 assertReverseSchema (AddProperty _) SFalse ItIsJust impossible
 assertReverseSchema (AddProperty _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SNumber _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SText _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SArray _ _) ItIsJust impossible
-assertReverseSchema (AddProperty key) (SObject map) x with (get map key)
+assertReverseSchema (AddProperty key) (SObject map) x with (get key map)
     assertReverseSchema (AddProperty key) (SObject map) x | Nothing =
-        rewrite lemmaGetInsert map key (False, SFalse) in
-            let ldi = lemmaDeleteInsert map key (False, SFalse) in ?missing
-    assertReverseSchema (AddProperty key) (SObject map) x | (Just y) = absurd $ x
+        rewrite update_eq map key (Just (False, SFalse)) in
+            let l = update_shadow map key in ?todo
+        --rewrite update_eq map in ?todo
+--            let ldi = lemmaDeleteInsert map key (False, SFalse) in ?missing
+    assertReverseSchema (AddProperty key) (SObject map) prf | (Just y) = absurd $ prf
 assertReverseSchema (RemoveProperty _) SFalse ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SNumber _) ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SText _) ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SArray _ _) ItIsJust impossible
-assertReverseSchema (RemoveProperty key) (SObject map) x with (get map key)
+assertReverseSchema (RemoveProperty key) (SObject map) x with (get key map)
     assertReverseSchema (RemoveProperty key) (SObject map) x | Nothing = absurd $ x
-    assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, SFalse)) =
-        rewrite lemmaGetDelete map key in
-            rewrite lemmaInsertDelete map key (False, SFalse) in ?hole_2
+    assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, SFalse)) = ?todo3
+--        rewrite lemmaGetDelete map key in
+--            rewrite lemmaInsertDelete map key (False, SFalse) in ?hole_2
     assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, (SBoolean _))) = absurd $ x
     assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, (SNumber _))) = absurd $ x
     assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, (SText _))) = absurd $ x

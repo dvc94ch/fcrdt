@@ -3,6 +3,8 @@ module Fcrdt.Map
 import Data.List
 import Data.Nat
 
+%default total
+
 iff : (p, q : Type) -> Type
 iff p q = (p -> q, q -> p)
 
@@ -151,9 +153,19 @@ data Map a = MkMap (List Key) (TotalMap (Maybe a))
 
 %name Map map, m, m1, m2
 
+public export
 empty : Map a
 empty = MkMap [] (const Nothing)
 
+public export
+isEmpty : Map a -> Bool
+isEmpty (MkMap [] _) = True
+isEmpty (MkMap (x :: xs) f) =
+    case f x of
+        Nothing => assert_total (isEmpty (MkMap xs f))
+        _ => False
+
+public export
 keys : Map a -> List Key
 keys (MkMap ks _) = ks
 
@@ -181,18 +193,23 @@ public export
 Eq a => Eq (Map a) where
     x == y = forall_keys_eq (keys x ++ keys y) x y
 
-update_eq : (m : Map a) -> get k (update k v m) = v
-update_eq (MkMap xs f) = rewrite beq_key k in Refl
+public export
+update_eq : (m : Map a) -> (k : Key) -> (v : Maybe a) -> get k (update k v m) = v
+update_eq (MkMap xs f) k v = rewrite beq_key k in Refl
 
+public export
 update_neq : {x1, x2 : Key} -> (m : Map a) -> Not (x1 = x2) -> (get x2 $ update x1 v m) = get x2 m
 update_neq (MkMap xs f) prf = t_update_neq prf
 
-update_shadow : (m : Map a) -> (get x $ update x v2 $ update x v1 m) = (get x $ update x v2 m)
-update_shadow (MkMap xs f) = rewrite beq_key x in Refl
+public export
+update_shadow : (m : Map a) -> (k : Key) -> (get k $ update k v2 $ update k v1 m) = (get k $ update k v2 m)
+update_shadow (MkMap xs f) k = rewrite beq_key k in Refl
 
+public export
 update_same : (m : Map a) -> (get x m) = v -> (get x $ update x v m) = v
 update_same (MkMap xs f) prf = rewrite beq_key x in Refl
 
+public export
 update_permute : (m : Map a) -> (k : Key) -> (k1 : Key) -> (k2 : Key) -> Not (k1 = k2) ->
     (get k $ update k1 v1 $ update k2 v2 m) = (get k $ update k2 v2 $ update k1 v1 m)
 update_permute (MkMap xs f) k k1 k2 prf with ((beq_keyP k1 k), (beq_keyP k2 k))

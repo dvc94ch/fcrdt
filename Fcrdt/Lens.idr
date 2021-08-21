@@ -216,7 +216,10 @@ applyLensSchema HeadProperty (SArray False schema) = Just schema
 applyLensSchema HeadProperty _ = Nothing
 applyLensSchema (LensIn key lens) (SObject smap) =
     case get key smap of
-        Just (_, schema) => applyLensSchema lens schema
+        Just (required, schema) =>
+            case applyLensSchema lens schema of
+                Just schema => Just (SObject (insert key (required, schema) smap))
+                Nothing => Nothing
         Nothing => Nothing
 applyLensSchema (LensIn _ _) _ = Nothing
 applyLensSchema (LensMap lens) (SArray allowEmpty schema) =
@@ -342,42 +345,59 @@ assertReverseSchema (Destroy KObject) (SNumber _) ItIsJust impossible
 assertReverseSchema (Destroy KObject) (SText _) ItIsJust impossible
 assertReverseSchema (Destroy KObject) (SArray _ _) ItIsJust impossible
 assertReverseSchema (Destroy KObject) (SObject m) prf with (isEmpty m)
-    assertReverseSchema (Destroy KObject) (SObject m) prf | False = absurd $ prf
+    assertReverseSchema (Destroy KObject) (SObject _) prf | False = absurd $ prf
     assertReverseSchema (Destroy KObject) (SObject m) prf | True = ?goodEnoughToConvinceMe
 assertReverseSchema (AddProperty _) SFalse ItIsJust impossible
 assertReverseSchema (AddProperty _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SNumber _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SText _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SArray _ _) ItIsJust impossible
-assertReverseSchema (AddProperty key) (SObject map) x with (get key map) proof prf
-    assertReverseSchema (AddProperty key) (SObject map) x | Nothing =
+assertReverseSchema (AddProperty key) (SObject map) prf with (get key map) proof prf1
+    assertReverseSchema (AddProperty key) (SObject map) _ | Nothing =
         rewrite update_eq map key (Just (False, SFalse)) in
             rewrite update_shadow map key (Just (False, SFalse)) Nothing in
-                rewrite update_same map key Nothing prf in Refl
-    assertReverseSchema (AddProperty key) (SObject map) prf | (Just y) = absurd $ prf
+                rewrite update_same map key Nothing prf1 in Refl
+    assertReverseSchema (AddProperty _) (SObject _) prf | (Just _) = absurd $ prf
 assertReverseSchema (RemoveProperty _) SFalse ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SNumber _) ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SText _) ItIsJust impossible
 assertReverseSchema (RemoveProperty _) (SArray _ _) ItIsJust impossible
-assertReverseSchema (RemoveProperty key) (SObject map) x with (get key map) proof prf
-    assertReverseSchema (RemoveProperty key) (SObject map) x | Nothing = absurd $ x
-    assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, SFalse)) =
+assertReverseSchema (RemoveProperty key) (SObject map) prf with (get key map) proof prf1
+    assertReverseSchema (RemoveProperty key) (SObject map) prf | Nothing = absurd $ prf
+    assertReverseSchema (RemoveProperty key) (SObject map) ItIsJust | (Just (False, SFalse)) =
         rewrite update_eq map key Nothing in
             rewrite update_shadow map key Nothing (Just (False, SFalse)) in
-                rewrite update_same map key (Just (False, SFalse)) prf in Refl
-    assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, (SBoolean _))) = absurd $ x
-    assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, (SNumber _))) = absurd $ x
-    assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, (SText _))) = absurd $ x
-    assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, (SArray _ _))) = absurd $ x
-    assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (False, (SObject _))) = absurd $ x
-    assertReverseSchema (RemoveProperty key) (SObject map) x | (Just (True, _)) = absurd $ x
+                rewrite update_same map key (Just (False, SFalse)) prf1 in Refl
+    assertReverseSchema (RemoveProperty key) (SObject map) prf | (Just (False, (SBoolean _))) = absurd $ prf
+    assertReverseSchema (RemoveProperty key) (SObject map) prf | (Just (False, (SNumber _))) = absurd $ prf
+    assertReverseSchema (RemoveProperty key) (SObject map) prf | (Just (False, (SText _))) = absurd $ prf
+    assertReverseSchema (RemoveProperty key) (SObject map) prf | (Just (False, (SArray _ _))) = absurd $ prf
+    assertReverseSchema (RemoveProperty key) (SObject map) prf | (Just (False, (SObject _))) = absurd $ prf
+    assertReverseSchema (RemoveProperty key) (SObject map) prf | (Just (True, _)) = absurd $ prf
 assertReverseSchema (RenameProperty _ _) SFalse ItIsJust impossible
 assertReverseSchema (RenameProperty _ _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (RenameProperty _ _) (SNumber _) ItIsJust impossible
 assertReverseSchema (RenameProperty _ _) (SText _) ItIsJust impossible
 assertReverseSchema (RenameProperty _ _) (SArray _ _) ItIsJust impossible
-assertReverseSchema (RenameProperty a b) (SObject map) x = ?assertReverseSchema_rhs_23
+assertReverseSchema (RenameProperty a b) (SObject map) prf with (get a map, get b map) proof prf1
+    assertReverseSchema (RenameProperty _ _) (SObject map) prf | (Nothing, _) = absurd $ prf
+    assertReverseSchema (RenameProperty a b) (SObject map) x | ((Just y), Nothing) =
+        rewrite update_eq (update a Nothing map) b (Just y)
+        in let
+            va = cong fst prf1
+            vb = cong snd prf1
+            not_a_eq_b = get_neq (tuple_eq prf1 uninhabited)
+            not_b_eq_a = \p => not_a_eq_b (sym p)
+        in rewrite update_permute map b a (Just y) Nothing not_b_eq_a
+        in rewrite update_eq (update b (Just y) map) a Nothing
+        in rewrite update_permute map a b Nothing (Just y) not_a_eq_b
+        in rewrite update_shadow (update a Nothing map) b (Just y) Nothing
+        in rewrite update_permute map b a Nothing Nothing not_b_eq_a
+        in rewrite update_same map b Nothing vb
+        in rewrite update_shadow map a Nothing (Just y)
+        in rewrite update_same map a (Just y) va in Refl
+    assertReverseSchema (RenameProperty _ _) (SObject _) prf | ((Just _), (Just _)) = absurd $ prf
 assertReverseSchema (HoistProperty _ _) SFalse ItIsJust impossible
 assertReverseSchema (HoistProperty _ _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (HoistProperty _ _) (SNumber _) ItIsJust impossible
@@ -403,8 +423,43 @@ assertReverseSchema HeadProperty (SText _) ItIsJust impossible
 assertReverseSchema HeadProperty (SArray False _) _ = Refl
 assertReverseSchema HeadProperty (SArray True _) ItIsJust impossible
 assertReverseSchema HeadProperty (SObject _) ItIsJust impossible
-assertReverseSchema (LensIn key lens) schema x = ?assertReverseSchema_rhs_11
-assertReverseSchema (LensMap lens) schema x = ?assertReverseSchema_rhs_12
-assertReverseSchema (Require key val) schema x = ?assertReverseSchema_rhs_13
-assertReverseSchema (Default v1 v2) schema x = ?assertReverseSchema_rhs_14
-assertReverseSchema (Convert k1 k2 xs) schema x = ?assertReverseSchema_rhs_15
+assertReverseSchema (LensIn _ _) SFalse ItIsJust impossible
+assertReverseSchema (LensIn _ _) (SBoolean _) ItIsJust impossible
+assertReverseSchema (LensIn _ _) (SNumber _) ItIsJust impossible
+assertReverseSchema (LensIn _ _) (SText _) ItIsJust impossible
+assertReverseSchema (LensIn _ _) (SArray _ _) ItIsJust impossible
+assertReverseSchema (LensIn key lens) (SObject map) prf with (get key map)
+    assertReverseSchema (LensIn key lens) (SObject map) prf | Nothing = absurd $ prf
+    assertReverseSchema (LensIn key lens) (SObject map) prf | (Just (x, y)) with (applyLensSchema lens y) proof prf1
+        assertReverseSchema (LensIn key lens) (SObject map) prf | (Just (x, y)) | Nothing = absurd $ prf
+        assertReverseSchema (LensIn key lens) (SObject map) prf | (Just (x, y)) | (Just z) =
+            rewrite update_eq map key (Just (x, z))
+            in let
+                ij = it_is_just (applyLensSchema lens y) prf1
+                ind = assertReverseSchema lens y ij
+            in ?hole
+            -- rewrite ind in ?assertReverseSchema_rhs_26
+assertReverseSchema (LensMap _) SFalse ItIsJust impossible
+assertReverseSchema (LensMap _) (SBoolean _) ItIsJust impossible
+assertReverseSchema (LensMap _) (SNumber _) ItIsJust impossible
+assertReverseSchema (LensMap _) (SText _) ItIsJust impossible
+assertReverseSchema (LensMap lens) (SArray y z) x = ?assertReverseSchema_rhs_20
+assertReverseSchema (LensMap _) (SObject _) ItIsJust impossible
+assertReverseSchema (Require _ _) SFalse ItIsJust impossible
+assertReverseSchema (Require _ _) (SBoolean _) ItIsJust impossible
+assertReverseSchema (Require _ _) (SNumber _) ItIsJust impossible
+assertReverseSchema (Require _ _) (SText _) ItIsJust impossible
+assertReverseSchema (Require _ _) (SArray _ _) ItIsJust impossible
+assertReverseSchema (Require key val) (SObject map) x = ?assertReverseSchema_rhs_22
+assertReverseSchema (Default v1 v2) SFalse x = ?assertReverseSchema_rhs_16
+assertReverseSchema (Default v1 v2) (SBoolean y) x = ?assertReverseSchema_rhs_17
+assertReverseSchema (Default v1 v2) (SNumber k) x = ?assertReverseSchema_rhs_18
+assertReverseSchema (Default v1 v2) (SText xs) x = ?assertReverseSchema_rhs_19
+assertReverseSchema (Default v1 v2) (SArray y z) x = ?assertReverseSchema_rhs_21
+assertReverseSchema (Default v1 v2) (SObject map) x = ?assertReverseSchema_rhs_23
+assertReverseSchema (Convert k1 k2 xs) SFalse x = ?assertReverseSchema_rhs_26
+assertReverseSchema (Convert k1 k2 xs) (SBoolean y) x = ?assertReverseSchema_rhs_27
+assertReverseSchema (Convert k1 k2 xs) (SNumber k) x = ?assertReverseSchema_rhs_28
+assertReverseSchema (Convert k1 k2 xs) (SText ys) x = ?assertReverseSchema_rhs_29
+assertReverseSchema (Convert k1 k2 xs) (SArray y z) x = ?assertReverseSchema_rhs_30
+assertReverseSchema (Convert k1 k2 xs) (SObject map) x = ?assertReverseSchema_rhs_31

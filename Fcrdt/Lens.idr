@@ -84,18 +84,18 @@ validate (SArray _ schema) (Array (x :: xs)) =
     assert_total (validate schema x) && assert_total (validate (SArray True schema) (Array xs))
 validate (SArray _ _) _ = False
 validate (SObject smap) (Object vmap) = validateProperties (keys vmap) vmap smap && validateRequired (keys smap) smap vmap where
-    validateProperties : List Key -> Map Value -> Map (Bool, Schema) -> Bool
-    validateProperties [] _ _ = True
-    validateProperties (k :: ks) vmap smap with (get k vmap, get k smap)
-        validateProperties (_ :: _) _ _ | (Nothing, _) = False
-        validateProperties (_ :: _) _  _ | (_, Nothing) = False
-        validateProperties (k :: ks) vmap smap | (Just value , Just (_, schema)) =
+    validateProperties : Set -> Map Value -> Map (Bool, Schema) -> Bool
+    validateProperties Empty _ _ = True
+    validateProperties (Entry k ks _) vmap smap with (get k vmap, get k smap)
+        validateProperties (Entry _ _ _) _ _ | (Nothing, _) = False
+        validateProperties (Entry _ _ _) _  _ | (_, Nothing) = False
+        validateProperties (Entry k ks _) vmap smap | (Just value , Just (_, schema)) =
             assert_total (validate schema value) && validateProperties ks vmap smap
-    validateRequired : List Key -> Map (Bool, Schema) -> Map Value -> Bool
-    validateRequired [] _ _ = True
-    validateRequired (k :: ks) smap vmap with (get k smap, get k vmap)
-        validateRequired (k :: ks) smap vmap | (Just (True, _), Nothing) = False
-        validateRequired (k :: ks) smap vmap | (_, _) = validateRequired ks smap vmap
+    validateRequired : Set -> Map (Bool, Schema) -> Map Value -> Bool
+    validateRequired Empty _ _ = True
+    validateRequired (Entry k ks _) smap vmap with (get k smap, get k vmap)
+        validateRequired (Entry k ks _) smap vmap | (Just (True, _), Nothing) = False
+        validateRequired (Entry k ks _) smap vmap | (_, _) = validateRequired ks smap vmap
 validate (SObject _) _ = False
 
 data Lens =

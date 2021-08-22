@@ -127,25 +127,26 @@ t_apply_empty = Refl
 t_update_eq : (t_update x v m) x = v
 t_update_eq = rewrite beq_key x in Refl
 
-t_update_neq : {x1, x2 : Key} -> Not (x1 = x2) -> (t_update x1 v m) x2 = m x2
-t_update_neq f with (beq_keyP x1 x2)
-    t_update_neq f | (ReflectT x prf) = rewrite prf in void (f x)
-    t_update_neq f | (ReflectF g prf) = rewrite prf in Refl
+t_update_neq : (x1, x2 : Key) -> Not (x1 = x2) -> (t_update x1 v m) x2 = m x2
+t_update_neq x1 x2 f with (beq_keyP x1 x2)
+    t_update_neq x1 x2 f | (ReflectT x prf) = rewrite prf in void (f x)
+    t_update_neq x1 x2 f | (ReflectF g prf) = rewrite prf in Refl
 
-t_update_shadow : {x : Key} -> (t_update x v2 $ t_update x v1 m) = t_update x v2 m
-t_update_shadow = functional_extensionality $ \y =>
+t_update_shadow : (x : Key) -> (v1, v2 : a) -> (m : TotalMap a) -> (t_update x v2 $ t_update x v1 m) = t_update x v2 m
+t_update_shadow x _ _ _ = functional_extensionality $ \y =>
     case beq_keyP x y of
         ReflectT z prf => rewrite prf in Refl
         ReflectF f prf => rewrite prf in rewrite prf in Refl
 
-t_update_same : {x : Key} -> t_update x (m x) m = m
-t_update_same = functional_extensionality $ \y =>
+t_update_same : (x : Key) -> (m : TotalMap a) -> t_update x (m x) m = m
+t_update_same x _ = functional_extensionality $ \y =>
     case beq_keyP x y of
         ReflectT z prf => rewrite prf in rewrite z in Refl
         ReflectF f prf => rewrite prf in Refl
 
-t_update_permute : {x1, x2 : Key} -> Not (x2 = x1) -> (t_update x1 v1 $ t_update x2 v2 m) = (t_update x2 v2 $ t_update x1 v1 m)
-t_update_permute f = functional_extensionality $ \y =>
+t_update_permute : (m : TotalMap a) -> (x1, x2 : Key) -> (v1, v2 : a) -> Not (x1 = x2) ->
+    (t_update x1 v1 $ t_update x2 v2 m) = (t_update x2 v2 $ t_update x1 v1 m)
+t_update_permute _ x1 x2 _ _ f = functional_extensionality $ \y =>
     case (beq_keyP x1 y, beq_keyP x2 y) of
         (ReflectT x prf, ReflectT z prf1) =>
             rewrite prf in rewrite prf1 in
@@ -173,17 +174,18 @@ p_apply_empty = Refl
 p_update_eq : (p_update x v m) x = Just v
 p_update_eq = t_update_eq
 
-p_update_neq : {x1, x2 : Key} -> Not (x1 = x2) -> (p_update x1 v m) x2 = m x2
-p_update_neq f = t_update_neq f
+p_update_neq : (x1, x2 : Key) -> Not (x1 = x2) -> (p_update x1 v m) x2 = m x2
+p_update_neq = t_update_neq
 
-p_update_shadow : {x : Key} -> (p_update x v2 $ p_update x v1 m) = p_update x v2 m
-p_update_shadow = t_update_shadow
+p_update_shadow : (x : Key) -> (v1, v2 : a) -> (m : PartialMap a) -> (p_update x v2 $ p_update x v1 m) = p_update x v2 m
+p_update_shadow x v1 v2 m = t_update_shadow x (Just v1) (Just v2) m
 
-p_update_same : {x : Key} -> m x = Just v -> p_update x v m = m
-p_update_same prf = rewrite sym prf in t_update_same
+p_update_same : (x : Key) -> (m : PartialMap a) ->  m x = Just v -> p_update x v m = m
+p_update_same x m prf = rewrite sym prf in t_update_same x m
 
-p_update_permute : {x1, x2 : Key} -> Not (x2 = x1) -> (p_update x1 v1 $ p_update x2 v2 m) = (p_update x2 v2 $ p_update x1 v1 m)
-p_update_permute = t_update_permute
+p_update_permute : (m : PartialMap a) -> (x1, x2 : Key) -> (v1, v2 : a) -> Not (x1 = x2) ->
+    (p_update x1 v1 $ p_update x2 v2 m) = (p_update x2 v2 $ p_update x1 v1 m)
+p_update_permute m x1 x2 v1 v2 = t_update_permute m x1 x2 (Just v1) (Just v2)
 
 
 Bag : Type
@@ -232,6 +234,7 @@ b_remove_all_eq (x :: xs) k with (beq_keyP k x)
 
 
 mutual
+    public export
     data Set : Type where
         Empty : Set
         Entry : (k : Key) -> (s : Set) -> NotInSet k s -> Set
@@ -299,50 +302,39 @@ neg_in (Entry key s x) k f with (s_memberP s k)
                     IsEmpty => HasEntry f1 ind
                     HasEntry a b => HasEntry f1 ind
 
+s_add' : (k : Key) -> (s : Set) -> Set
+s_add' k s with (s_memberP s k)
+    s_add' k s | (ReflectT x prf) = s
+    s_add' k s | (ReflectF f prf) = Entry k s (neg_in s k f)
+
 mutual
-    s_update_f : (k : Key) -> (s : Set)  -> Set
-    s_update_f k s with (s_memberP s k)
-        s_update_f k s | (ReflectT y prf) = case s of
+    s_remove' : (k : Key) -> (s : Set)  -> Set
+    s_remove' k s with (s_memberP s k)
+        s_remove' k s | (ReflectT y prf) = case s of
             Entry k' s' p' => case y of
                 Left a => s'
-                Right b => Entry k' (s_update_f k s') (s_update_f_lemma s' k' k p')
-        s_update_f k s | (ReflectF f prf) = s
+                Right b => Entry k' (s_remove' k s') (s_remove_lemma s' k' k p')
+        s_remove' k s | (ReflectF f prf) = s
 
-    s_update_f_lemma : (s : Set) -> (k1, k2 : Key) -> NotInSet k1 s -> NotInSet k1 (s_update_f k2 s)
-    s_update_f_lemma Empty k1 k2 IsEmpty = IsEmpty
-    s_update_f_lemma (Entry k s y) k1 k2 (HasEntry f x) with (s_memberP s k)
-        s_update_f_lemma (Entry k s y) k1 k2 (HasEntry f x) | (ReflectT z prf) =
-            let ind = s_update_f_lemma s k1 k2 x in ?s_update_f_lemma_rhs_4
-        s_update_f_lemma (Entry k s y) k1 k2 (HasEntry f x) | (ReflectF g prf) = ?s_update_f_lemma_rhs_5
+    s_remove_lemma : (s : Set) -> (k1, k2 : Key) -> NotInSet k1 s -> NotInSet k1 (s_remove' k2 s)
+    s_remove_lemma Empty k1 k2 IsEmpty = IsEmpty
+    s_remove_lemma (Entry k s y) k1 k2 (HasEntry f x) with (s_memberP s k)
+        s_remove_lemma (Entry k s y) k1 k2 (HasEntry f x) | (ReflectT z prf) =
+            let ind = s_remove_lemma s k1 k2 x in ?s_update_f_lemma_rhs_4
+        s_remove_lemma (Entry k s y) k1 k2 (HasEntry f x) | (ReflectF g prf) = ?s_update_f_lemma_rhs_5
 
-    {-    s_update_f k (Entry x s p) | (ReflectT y prf) = s
-        s_update_f k (Entry x s p) | (ReflectF f prf) =
-            let a = s_update_f_lemma s k f p in Entry x (s_update_f k s) a
-            -- ?h --(s_update_f_lemma s ?h f p)
-    {-s_update k True s with (s_memberP s k)
-        s_update k True s | (ReflectT x prf) = s
-        s_update k True s | (ReflectF f prf) = Entry k s (neg_in s k f)-}
+s_update : (k : Key) -> (b : Bool) -> (s : Set) -> Set
+s_update k False s = s_remove' k s
+s_update k True s = s_add' k s
 
-    s_update_f_lemma : (s : Set) -> (x : Key) -> Not (k = x) -> NotInSet k s -> NotInSet k (s_update_f x s)
-    s_update_f_lemma Empty _ _ _ = IsEmpty
-    s_update_f_lemma (Entry key s z) x f (HasEntry g y) with (beq_keyP key x)
-        s_update_f_lemma (Entry key s z) x f (HasEntry g y) | (ReflectT w prf) = y
-        s_update_f_lemma (Entry key s z) x f (HasEntry g y) | (ReflectF f1 prf) =
-            let ind = s_update_f_lemma s x f y in ?s_update_lemma_rhs_3
-    {-s_update_lemma s f IsEmpty = IsEmpty
-    s_update_lemma s f (HasEntry g IsEmpty) = ?h_1
-    s_update_lemma s f (HasEntry g (HasEntry f1 y)) = ?h_2-}
-        --let ind = s_update_lemma f y in ?h --with (beq_keyP k2 x)
-        --s_update_lemma f (HasEntry g y) | r = ?s_update_lemma_rhs_2-}-}
-
-{-s_add : (k : Key) -> (s : Set) -> Set
+s_add : (k : Key) -> (s : Set) -> Set
 s_add k s = s_update k True s
 
 s_remove : (k : Key) -> (s : Set) -> Set
-s_remove k s = s_update k False s-}
+s_remove k s = s_update k False s
 
-{-s_update_eq : (s : Set) -> (k : Key) -> (b : Bool) -> s_member k (s_update k b s) = b
-s_update_eq Empty k False = Refl
+s_update_eq : (s : Set) -> (k : Key) -> (b : Bool) -> s_member k (s_update k b s) = b
+{-s_update_eq Empty k False = Refl
 s_update_eq Empty k True = rewrite beq_key k in Refl
 s_update_eq (Entry x xs _) k False with (beq_keyP k x)
     s_update_eq (Entry x xs _) k False | (ReflectT y prf) = rewrite prf in s_update_eq xs k False
@@ -355,8 +347,8 @@ s_update_eq (Entry x xs _) k True with (beq_keyP k x)
         s_update_eq (Entry x xs _) k True | (ReflectF f prf) | (ReflectF g prf1) =
             rewrite beq_key k in Refl-}
 
-{-s_update_shadow : (s : Set) -> (k : Key) -> (b1, b2 : Bool) -> (s_update k b2 $ s_update k b1 s) = s_update k b2 s
-s_update_shadow Empty k False b2 = Refl
+s_update_shadow : (s : Set) -> (k : Key) -> (b1, b2 : Bool) -> (s_update k b2 $ s_update k b1 s) = s_update k b2 s
+{-s_update_shadow Empty k False b2 = Refl
 s_update_shadow Empty k True False = rewrite beq_key k in Refl
 s_update_shadow Empty k True True with (beq_keyP k k)
     s_update_shadow Empty k True True | (ReflectT x prf) = Refl
@@ -370,13 +362,11 @@ s_update_shadow (Entry key s x) k False False with (beq_keyP k key)
 s_update_shadow (Entry key s x) k False True = ?h_4
 s_update_shadow (Entry key s x) k True b2 = ?h_2-}
 
-{-s_update_same : (s : Set) -> (k : Key) -> (b1, b2 : Bool) -> (s_member k s) = b -> s_update k b s = s
-s_update_same m k v prf = ?update_same_rhs2
--- update_same (MkMap xs f) prf = rewrite beq_key x in Refl
+s_update_same : (s : Set) -> (k : Key) -> (b : Bool) -> s_update k (s_member k s) s = s
 
 s_update_permute : (s : Set) -> (k1, k2 : Key) -> (b1, b2 : Bool) -> Not (k1 = k2) ->
-    (s_update k1 v1 $ s_update k2 v2 m) = (s_update k2 v2 $ s_update k1 v1 m)
-s_update_permute m k1 k2 f = ?update_permute_rhs2
+    (s_update k1 b1 $ s_update k2 b2 s) = (s_update k2 b2 $ s_update k1 b1 s)
+
 
 export
 data Map a = MkMap Set (TotalMap (Maybe a))
@@ -385,23 +375,23 @@ data Map a = MkMap Set (TotalMap (Maybe a))
 
 public export
 empty : Map a
-empty = MkMap [] (const Nothing)
+empty = MkMap Empty (const Nothing)
 
 public export
 isEmpty : Map a -> Bool
-isEmpty (MkMap [] _) = True
-isEmpty (MkMap (x :: xs) f) =
+isEmpty (MkMap Empty _) = True
+isEmpty (MkMap (Entry x xs _) f) =
     case f x of
         Nothing => assert_total (isEmpty (MkMap xs f))
         _ => False
 
 public export
-keys : Map a -> List Key
+keys : Map a -> Set
 keys (MkMap ks _) = ks
 
 public export
 get : Key -> Map a -> Maybe a
-get key (MkMap _ f) = f key
+get key (MkMap s f) = if s_member key s then f key else Nothing
 
 public export
 update : Key -> Maybe a -> Map a -> Map a
@@ -415,54 +405,41 @@ public export
 delete : Key -> Map a -> Map a
 delete key map = update key Nothing map
 
-forall_keys_eq : Eq a => List Key -> (x, y : Map a) -> Bool
-forall_keys_eq [] x y = ?t_eq'_rhs_1
-forall_keys_eq (k :: ks) x y = get k x == get k y && forall_keys_eq ks x y
+forall_keys_eq : Eq a => Set -> (x, y : Map a) -> Bool
+forall_keys_eq Empty x y = True
+forall_keys_eq (Entry k ks _) x y = get k x == get k y && forall_keys_eq ks x y
 
 public export
 Eq a => Eq (Map a) where
-    x == y = forall_keys_eq (keys x ++ keys y) x y
+    x == y = forall_keys_eq (keys x) x y && forall_keys_eq (keys y) x y
 
 public export
 update_eq : (m : Map a) -> (k : Key) -> (v : Maybe a) -> get k (update k v m) = v
-update_eq (MkMap xs f) k v = rewrite beq_key k in Refl
-
--- update_eqP : (m : Map a) -> (k : Key) -> (v : Maybe a) -> Reflect (
+update_eq (MkMap xs f) k v = ?h -- rewrite beq_key k in Refl
 
 public export
-update_neq : {x1, x2 : Key} -> (m : Map a) -> Not (x1 = x2) -> (get x2 $ update x1 v m) = get x2 m
-update_neq (MkMap xs f) prf = t_update_neq prf
+update_neq : (x1, x2 : Key) -> (m : Map a) -> Not (x1 = x2) -> (get x2 $ update x1 v m) = get x2 m
+update_neq x1 x2 (MkMap xs f) prf = ?h2 --t_update_neq x1 x2 prf
 
 public export
 update_shadow : (m : Map a) -> (k : Key) -> (v1, v2 : Maybe a) -> (update k v2 $ update k v1 m) = update k v2 m
-update_shadow (MkMap xs f) k v1 v2 = ?hole345 --rewrite beq_key k in Refl
-
-{-public export
-update_shadow : (m : Map a) -> (k : Key) -> (get k $ update k v2 $ update k v1 m) = (get k $ update k v2 m)
-update_shadow (MkMap xs f) k = rewrite beq_key k in Refl-}
+update_shadow (MkMap ks f) k v1 v2 =
+    let
+        s = s_update_shadow ks k (isJust v1) (isJust v2)
+        t = t_update_shadow k v1 v2 f
+    in rewrite s in rewrite t in Refl
 
 public export
-update_same : (m : Map a) -> (k : Key) -> (v : Maybe a) -> (get k m) = v -> update k v m = m
-update_same m k v prf = ?update_same_rhs
--- update_same (MkMap xs f) prf = rewrite beq_key x in Refl
+update_same : (m : Map a) -> (k : Key) -> (v : Maybe a) -> (get k m = v) -> update k v  m = m
 
 public export
 update_permute : (m : Map a) -> (k1, k2 : Key) -> (v1, v2 : Maybe a) -> Not (k1 = k2) ->
     (update k1 v1 $ update k2 v2 m) = (update k2 v2 $ update k1 v1 m)
-update_permute m k1 k2 f = ?update_permute_rhs
-
-{-public export
-update_permute : (m : Map a) -> (k : Key) -> (k1 : Key) -> (k2 : Key) -> Not (k1 = k2) ->
-    (get k $ update k1 v1 $ update k2 v2 m) = (get k $ update k2 v2 $ update k1 v1 m)
-update_permute (MkMap xs f) k k1 k2 prf with ((beq_keyP k1 k), (beq_keyP k2 k))
-    update_permute (MkMap xs f) k k1 k2 prf | ((ReflectT x prf1), (ReflectT y prf2)) =
-        void (prf (rewrite x in rewrite y in Refl))
-    update_permute (MkMap xs f) k k1 k2 prf | ((ReflectT x prf1), (ReflectF g prf2)) =
-        rewrite prf1 in rewrite prf2 in rewrite prf1 in Refl
-    update_permute (MkMap xs f) k k1 k2 prf | ((ReflectF g prf1), (ReflectT x prf2)) =
-        rewrite prf1 in rewrite prf2 in Refl
-    update_permute (MkMap xs f) k k1 k2 prf | ((ReflectF g prf1), (ReflectF f1 prf2)) =
-        rewrite prf1 in rewrite prf2 in rewrite prf1 in Refl-}
+update_permute (MkMap s f) k1 k2 v1 v2 prf =
+    let
+        s = s_update_permute s k1 k2 (isJust v1) (isJust v2) prf
+        t = t_update_permute f k1 k2 v1 v2 prf
+    in rewrite s in rewrite t in Refl
 
 public export
 get_neq : Not (get a m = get b m) -> Not (a = b)
@@ -480,4 +457,3 @@ public export
 it_is_just : (a : Maybe b) -> (a = Just c) -> IsJust a
 it_is_just Nothing Refl impossible
 it_is_just (Just x) prf = ItIsJust
--}

@@ -30,10 +30,31 @@ reflect_iff False (ReflectF f prf) = (\p => void (f p), \p => void (uninhabited 
 reflect_iff True (ReflectT x prf) = (\p => prf, \Refl => x)
 reflect_iff True (ReflectF _ Refl) impossible
 
-beq_nat : (n: Nat) -> n == n = True
+public export
+beq_bool : (b : Bool) -> b == b = True
+beq_bool False = Refl
+beq_bool True = Refl
+
+public export
+eq_bool : (b1, b2 : Bool) -> b1 == b2 = True -> b1 = b2
+eq_bool False False _ = Refl
+eq_bool False True Refl impossible
+eq_bool True False Refl impossible
+eq_bool True True _ = Refl
+
+public export
+inv_bool : (b1, b2 : Bool) -> b1 = (not b2) -> b2 = (not b1)
+inv_bool False False Refl impossible
+inv_bool False True _ = Refl
+inv_bool True False _ = Refl
+inv_bool True True Refl impossible
+
+public export
+beq_nat : (n : Nat) -> n == n = True
 beq_nat 0 = Refl
 beq_nat (S k) = beq_nat k
 
+public export
 beq_implies_eq_nat : (n1, n2 : Nat) -> n1 == n2 = True -> n1 = n2
 beq_implies_eq_nat 0 0 prf = Refl
 beq_implies_eq_nat 0 (S _) Refl impossible
@@ -73,6 +94,15 @@ beq_natP : (n, m : Nat) -> Reflect (n = m) (n == m)
 beq_natP n m with (n == m) proof h
     beq_natP n m | False = ReflectF (bneq_implies_neq_nat n m h) Refl
     beq_natP n m | True = ReflectT (beq_implies_eq_nat n m h) Refl
+
+
+public export
+beq_str : (s : String) -> s == s = True
+beq_str s = believe_me s
+
+public export
+eq_str : (s1, s2 : String) -> s1 == s2 = True -> s1 = s2
+eq_str s1 s2 prf = believe_me prf
 
 
 In : (x : a) -> (l : List a) -> Type

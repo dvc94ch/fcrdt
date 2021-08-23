@@ -188,27 +188,30 @@ applyLensSchema (RenameProperty x y) (SObject smap) =
             in Just (SObject smap)
         _ => Nothing
 applyLensSchema (RenameProperty _ _) _ = Nothing
-applyLensSchema (HoistProperty host target) (SObject smap) =
-    case get host smap of
-        Just (required, SObject host_smap) =>
-            (case get target host_smap of
+applyLensSchema (HoistProperty h t) (SObject m) =
+    case (get h m, get t m) of
+        (Just (hr, SObject hm), Nothing) =>
+            case get t hm of
                 Just p =>
                     let
-                        host_smap = delete target host_smap
-                        smap = insert host (required, SObject host_smap) smap
-                        smap = insert target p smap
-                     in Just (SObject smap)
-                Nothing => Nothing)
+                        hm = delete t hm
+                        m = insert t p m
+                        m = insert h (hr, SObject hm) m
+                     in Just (SObject m)
+                Nothing => Nothing
         _ => Nothing
 applyLensSchema (HoistProperty _ _) _ = Nothing
-applyLensSchema (PlungeProperty host target) (SObject smap) =
-    case (get target smap, get host smap) of
-        (Just (required, schema), Nothing) =>
-            let
-                host_smap = insert target (required, schema) empty
-                smap = delete target smap
-                smap = insert host (required, SObject host_smap) smap
-            in Just (SObject smap)
+applyLensSchema (PlungeProperty h t) (SObject m) =
+    case (get t m, get h m, t == h) of
+        (Just p, Just (hr, SObject hm), False) =>
+            case get t hm of
+                Nothing =>
+                    let
+                        hm = insert t p hm
+                        m = delete t m
+                        m = insert h (hr, SObject hm) m
+                    in Just (SObject m)
+                _ => Nothing
         _ => Nothing
 applyLensSchema (PlungeProperty _ _) _ = Nothing
 applyLensSchema WrapProperty schema = Just (SArray False schema)
@@ -403,13 +406,72 @@ assertReverseSchema (HoistProperty _ _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (HoistProperty _ _) (SNumber _) ItIsJust impossible
 assertReverseSchema (HoistProperty _ _) (SText _) ItIsJust impossible
 assertReverseSchema (HoistProperty _ _) (SArray _ _) ItIsJust impossible
-assertReverseSchema (HoistProperty key k) (SObject map) x = ?assertReverseSchema_rhs_24
+assertReverseSchema (HoistProperty h t) (SObject hm) prf with (get h hm, get t hm) proof prf1
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | (Nothing, _) = absurd $ prf
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, SFalse)), (Just _)) = absurd $ prf
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, (SBoolean _))), (Just _)) = absurd $ prf
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, (SNumber _))), (Just _)) = absurd $ prf
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, (SText _))), (Just _)) = absurd $ prf
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, (SArray _ _))), (Just _)) = absurd $ prf
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, (SObject _))), (Just _)) = absurd $ prf
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, SFalse)), Nothing) = absurd $ prf
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, (SBoolean _))), Nothing) = absurd $ prf
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, (SNumber _))), Nothing) = absurd $ prf
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, (SText _))), Nothing) = absurd $ prf
+    assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, (SArray _ _))), Nothing) = absurd $ prf
+    assertReverseSchema (HoistProperty h t) (SObject hm) prf | ((Just (r, (SObject tm))), Nothing) with (get t tm) proof prf2
+        assertReverseSchema (HoistProperty _ _) (SObject _) prf | ((Just (_, (SObject _))), Nothing) | Nothing = absurd $ prf
+        assertReverseSchema (HoistProperty h t) (SObject hm) prf | ((Just (r, (SObject tm))), Nothing) | (Just x) =
+            let neq_ht = get_neq (tuple_eq prf1 uninhabited)
+                neq_th = \p => neq_ht $ sym p
+                bne_th = ne_key t h neq_th
+            in rewrite update_permute hm h t (Just (r, (SObject (update t Nothing tm)))) (Just x) neq_ht
+            in rewrite update_eq (update h (Just (r, SObject (update t Nothing tm))) hm) t (Just x)
+            in rewrite update_permute hm t h (Just x) (Just (r, SObject (update t Nothing tm))) neq_th
+            in rewrite update_eq (update t (Just x) hm) h (Just (r, SObject (update t Nothing tm)))
+            in rewrite bne_th
+            in rewrite update_eq tm t Nothing
+            in rewrite update_shadow tm t Nothing (Just x)
+            in rewrite update_permute (update t (Just x) hm) t h Nothing (Just (r, SObject (update t Nothing tm))) neq_th
+            in rewrite update_shadow hm t (Just x) Nothing
+            in rewrite update_shadow (update t Nothing hm) h
+                (Just (r, SObject (update t Nothing tm)))
+                (Just (r, SObject (update t (Just x) tm)))
+            in rewrite update_same hm t Nothing (cong snd prf1)
+            in rewrite update_same tm t (Just x) prf2
+            in rewrite update_same hm h (Just (r, SObject tm)) (cong fst prf1)
+            in Refl
 assertReverseSchema (PlungeProperty _ _) SFalse ItIsJust impossible
 assertReverseSchema (PlungeProperty _ _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (PlungeProperty _ _) (SNumber _) ItIsJust impossible
 assertReverseSchema (PlungeProperty _ _) (SText _) ItIsJust impossible
 assertReverseSchema (PlungeProperty _ _) (SArray _ _) ItIsJust impossible
-assertReverseSchema (PlungeProperty key k) (SObject map) x = ?assertReverseSchema_rhs_25
+assertReverseSchema (PlungeProperty h t) (SObject m) prf with (get t m, get h m, t == h) proof prf1
+    assertReverseSchema (PlungeProperty _ _) (SObject _) prf | (Nothing, _, _) = absurd $ prf
+    assertReverseSchema (PlungeProperty _ _) (SObject _) prf | ((Just _), Nothing, _) = absurd $ prf
+    assertReverseSchema (PlungeProperty _ _) (SObject _) prf | ((Just _), (Just (_, SFalse)), _) = absurd $ prf
+    assertReverseSchema (PlungeProperty _ _) (SObject _) prf | ((Just _), (Just (_, (SBoolean _))), _) = absurd $ prf
+    assertReverseSchema (PlungeProperty _ _) (SObject _) prf | ((Just _), (Just (_, (SNumber _))), _) = absurd $ prf
+    assertReverseSchema (PlungeProperty _ _) (SObject _) prf | ((Just _), (Just (_, (SText _))), _) = absurd $ prf
+    assertReverseSchema (PlungeProperty _ _) (SObject _) prf | ((Just _), (Just (_, (SArray _ _))), _) = absurd $ prf
+    assertReverseSchema (PlungeProperty _ _) (SObject _) prf | ((Just _), (Just (_, (SObject _))), True) = absurd $ prf
+    assertReverseSchema (PlungeProperty h t) (SObject m) prf | ((Just tv), (Just (hr, (SObject hm))), False) with (get t hm) proof prf2
+        assertReverseSchema (PlungeProperty _ _) (SObject _) prf | ((Just _), (Just (_, (SObject _))), False) | (Just _) = absurd $ prf
+        assertReverseSchema (PlungeProperty h t) (SObject m) prf | ((Just tv), (Just (hr, (SObject hm))), False) | Nothing =
+            let neq_th = bne_key t h $ cong snd $ cong snd $ prf1
+                neq_ht = \p => neq_th $ sym p
+            in rewrite update_eq (update t Nothing m) h (Just (hr, SObject (update t (Just tv) hm)))
+            in rewrite update_permute m h t (Just (hr, SObject (update t (Just tv) hm))) Nothing neq_ht
+            in rewrite update_eq (update h (Just (hr, SObject (update t (Just tv) hm))) m) t Nothing
+            in rewrite update_eq hm t (Just tv)
+            in rewrite update_shadow hm t (Just tv) Nothing
+            in rewrite update_shadow (update h (Just (hr, SObject (update t (Just tv) hm))) m) t Nothing (Just tv)
+            in rewrite update_permute m t h (Just tv) (Just (hr, SObject (update t (Just tv) hm))) neq_th
+            in rewrite update_same m t (Just tv) (cong fst prf1)
+            in rewrite update_shadow m h (Just (hr, SObject (update t (Just tv) hm))) (Just (hr, SObject (update t Nothing hm)))
+            in rewrite update_same hm t Nothing prf2
+            in rewrite update_same m h (Just (hr, SObject hm)) (cong fst $ cong snd prf1)
+            in Refl
 assertReverseSchema WrapProperty SFalse _ = Refl
 assertReverseSchema WrapProperty (SBoolean _) _ = Refl
 assertReverseSchema WrapProperty (SNumber _) _ = Refl

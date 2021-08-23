@@ -106,6 +106,16 @@ beq_key : (k: Key) -> k == k = True
 beq_key (MkKey n) = beq_nat n
 
 public export
+bne_key : (k1, k2 : Key) -> k1 == k2 = False -> Not (k1 = k2)
+bne_key (MkKey k) (MkKey j) prf prf1 =
+    bneq_implies_neq_nat k j prf (cong key_to_nat prf1)
+
+public export
+ne_key : (k1, k2 : Key) -> Not (k1 = k2) -> k1 == k2 = False
+ne_key (MkKey k) (MkKey j) prf =
+    neq_implies_bneq_nat k j (\p => prf $ rewrite p in Refl)
+
+public export
 beq_keyP : (n, m : Key) -> Reflect (n = m) (n == m)
 beq_keyP (MkKey k) (MkKey j) with (beq_natP k j)
     beq_keyP (MkKey k) (MkKey j) | (ReflectT x prf) = ReflectT (cong MkKey x) prf
@@ -415,11 +425,11 @@ Eq a => Eq (Map a) where
 
 public export
 update_eq : (m : Map a) -> (k : Key) -> (v : Maybe a) -> get k (update k v m) = v
-update_eq (MkMap xs f) k v = ?h -- rewrite beq_key k in Refl
+update_eq (MkMap xs f) k v = ?update_eq' -- rewrite beq_key k in Refl
 
 public export
 update_neq : (x1, x2 : Key) -> (m : Map a) -> Not (x1 = x2) -> (get x2 $ update x1 v m) = get x2 m
-update_neq x1 x2 (MkMap xs f) prf = ?h2 --t_update_neq x1 x2 prf
+update_neq x1 x2 (MkMap xs f) prf = ?update_neq' -- t_update_neq x1 x2 prf
 
 public export
 update_shadow : (m : Map a) -> (k : Key) -> (v1, v2 : Maybe a) -> (update k v2 $ update k v1 m) = update k v2 m

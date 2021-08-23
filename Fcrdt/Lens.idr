@@ -122,6 +122,16 @@ convertIsValid kx ky ((x, y) :: map) =
     primitiveKindOf x == kx && primitiveKindOf y == ky && convertIsValid kx ky map
 
 convert : PrimitiveValue -> List (PrimitiveValue, PrimitiveValue) -> Maybe PrimitiveValue
+convert _ [] = Nothing
+convert key ((k, v) :: xs) = if key == k then Just v else convert key xs
+
+convertDefault : PrimitiveValue -> List (PrimitiveValue, PrimitiveValue) -> Maybe PrimitiveValue
+convertDefault d m =
+    case convert d m of
+        Just d' => case convert d' m of
+            Just d2 => if d == d2 then Just d' else Nothing
+            Nothing => Nothing
+        Nothing => Nothing
 
 Eq Lens where
     Make k1 == Make k2 = k1 == k2
@@ -247,19 +257,18 @@ applyLensSchema (Default (Number x) (Number y)) (SNumber x2) =
 applyLensSchema (Default (Text x) (Text y)) (SText x2) =
     if x == x2 then Just (SText y) else Nothing
 applyLensSchema (Default _ _) _ = Nothing
--- TODO convert default values
 applyLensSchema (Convert a b map) s with (convertIsValid a b map)
-    applyLensSchema (Convert KBoolean b m) (SBoolean d) | True with (convert (Boolean d) m)
+    applyLensSchema (Convert KBoolean b m) (SBoolean d) | True with (convertDefault (Boolean d) m)
         applyLensSchema (Convert KBoolean KBoolean _) (SBoolean d) | True | Just (Boolean d') = Just (SBoolean d')
         applyLensSchema (Convert KBoolean KNumber _) (SBoolean d) | True | Just (Number d') = Just (SNumber d')
         applyLensSchema (Convert KBoolean KText _) (SBoolean d) | True | Just (Text d') = Just (SText d')
         applyLensSchema (Convert KBoolean _ _) (SBoolean _) | True | _ = Nothing
-    applyLensSchema (Convert KNumber b m) (SNumber d) | True with (convert (Number d) m)
+    applyLensSchema (Convert KNumber b m) (SNumber d) | True with (convertDefault (Number d) m)
         applyLensSchema (Convert KNumber KBoolean _) (SNumber d) | True | Just (Boolean d') = Just (SBoolean d')
         applyLensSchema (Convert KNumber KNumber _) (SNumber d) | True | Just (Number d') = Just (SNumber d')
         applyLensSchema (Convert KNumber KText _) (SNumber d) | True | Just (Text d') = Just (SText d')
         applyLensSchema (Convert KNumber _ _) (SNumber _) | True | _ = Nothing
-    applyLensSchema (Convert KText b m) (SText d) | True with (convert (Text d) m)
+    applyLensSchema (Convert KText b m) (SText d) | True with (convertDefault (Text d) m)
         applyLensSchema (Convert KText KBoolean _) (SText d) | True | Just (Boolean d') = Just (SBoolean d')
         applyLensSchema (Convert KText KNumber _) (SText d) | True | Just (Number d') = Just (SNumber d')
         applyLensSchema (Convert KText KText _) (SText d) | True | Just (Text d') = Just (SText d')
@@ -282,6 +291,19 @@ applyTwoLenses a b s =
 
 reverseSchema : Lens -> Schema -> Maybe Schema
 reverseSchema l s = applyTwoLenses l (reverseLens l) s
+
+convertIsValidAfterReverse : (a, b : PrimitiveKind) -> (m : List (PrimitiveValue, PrimitiveValue)) ->
+    convertIsValid a b m = True -> convertIsValid b a (map (\(a, b) => (b, a)) m) = True
+convertIsValidAfterReverse a b [] prf = Refl
+convertIsValidAfterReverse a b ((x, y) :: xs) prf = ?convertIsValidAfterReverse_rhs_6
+
+convertDefaultAfterReverse : (d, d' : PrimitiveValue) -> (m : List (PrimitiveValue, PrimitiveValue)) ->
+    convertDefault d m = Just d' -> convertDefault d' (map (\(a, b) => (b, a)) m) = Just d
+convertDefaultAfterReverse (Boolean x) (Boolean y) prf = ?convertDefaultAfterReverse_rhs_4
+convertDefaultAfterReverse (Boolean x) (Number k) prf = ?convertDefaultAfterReverse_rhs_5
+convertDefaultAfterReverse (Boolean x) (Text y) prf = ?convertDefaultAfterReverse_rhs_6
+convertDefaultAfterReverse (Number k) d' prf = ?convertDefaultAfterReverse_rhs_2
+convertDefaultAfterReverse (Text x) d' prf = ?convertDefaultAfterReverse_rhs_3
 
 ||| Forwards and backwards compatibility requires schema transformations to be reversible
 assertReverseSchema :
@@ -494,7 +516,7 @@ assertReverseSchema HeadProperty (SNumber _) ItIsJust impossible
 assertReverseSchema HeadProperty (SText _) ItIsJust impossible
 assertReverseSchema HeadProperty (SArray False _) _ = Refl
 assertReverseSchema HeadProperty (SArray True _) ItIsJust impossible
-assertReverseSchema HeadProperty (SObject _) ItIsJust impossible-}
+assertReverseSchema HeadProperty (SObject _) ItIsJust impossible
 assertReverseSchema (LensIn _ _) SFalse ItIsJust impossible
 assertReverseSchema (LensIn _ _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (LensIn _ _) (SNumber _) ItIsJust impossible
@@ -580,10 +602,75 @@ assertReverseSchema (Default (Text t) (Text t')) (SText t2) prf with (t == t2) p
         rewrite beq_str t' in
         rewrite eq_str t t2 prf1 in Refl
 assertReverseSchema (Default (Text _) (Text _)) (SArray _ _) ItIsJust impossible
-assertReverseSchema (Default (Text _) (Text _)) (SObject _) ItIsJust impossible
-assertReverseSchema (Convert KBoolean KBoolean xs) s x = ?assertReverseSchema_rhs_31
-assertReverseSchema (Convert KBoolean KNumber xs) s x = ?assertReverseSchema_rhs_32
-assertReverseSchema (Convert KBoolean KText xs) s x = ?assertReverseSchema_rhs_33
-assertReverseSchema (Convert KNumber k2 xs) s x = ?assertReverseSchema_rhs_29
-assertReverseSchema (Convert KText k2 xs) s x = ?assertReverseSchema_rhs_30
+assertReverseSchema (Default (Text _) (Text _)) (SObject _) ItIsJust impossible-}
+assertReverseSchema (Convert a b m) s prf with (convertIsValid a b m) proof prf1
+    assertReverseSchema (Convert KBoolean _ _) _ prf | False = absurd $ prf
+    assertReverseSchema (Convert KNumber _ _) _ prf | False = absurd $ prf
+    assertReverseSchema (Convert KText _ _) _ prf | False = absurd $ prf
+    assertReverseSchema (Convert KBoolean _ _) SFalse prf | True = absurd $ prf
+    assertReverseSchema (Convert KBoolean b m) (SBoolean d) prf | True with (convertDefault (Boolean d) m) proof prf2
+        assertReverseSchema (Convert KBoolean b m) (SBoolean d) prf | True | Nothing = absurd $ prf
+        assertReverseSchema (Convert KBoolean KBoolean m) (SBoolean d) prf | True | (Just (Boolean d')) =
+            rewrite convertIsValidAfterReverse KBoolean KBoolean m prf1
+            in rewrite convertDefaultAfterReverse (Boolean d) (Boolean d') m prf2 in Refl
+        assertReverseSchema (Convert KBoolean KBoolean _) (SBoolean _) prf | True | (Just (Number _)) = absurd $ prf
+        assertReverseSchema (Convert KBoolean KBoolean _) (SBoolean _) prf | True | (Just (Text _)) = absurd $ prf
+        assertReverseSchema (Convert KBoolean KNumber _) (SBoolean _) prf | True | (Just (Boolean _)) = absurd $ prf
+        assertReverseSchema (Convert KBoolean KNumber m) (SBoolean d) prf | True | (Just (Number d')) =
+            rewrite convertIsValidAfterReverse KBoolean KNumber m prf1
+            in rewrite convertDefaultAfterReverse (Boolean d) (Number d') m prf2 in Refl
+        assertReverseSchema (Convert KBoolean KNumber _) (SBoolean _) prf | True | (Just (Text _)) = absurd $ prf
+        assertReverseSchema (Convert KBoolean KText _) (SBoolean _) prf | True | (Just (Boolean _)) = absurd $ prf
+        assertReverseSchema (Convert KBoolean KText _) (SBoolean _) prf | True | (Just (Number _)) = absurd $ prf
+        assertReverseSchema (Convert KBoolean KText m) (SBoolean d) prf | True | (Just (Text d')) =
+            rewrite convertIsValidAfterReverse KBoolean KText m prf1
+            in rewrite convertDefaultAfterReverse (Boolean d) (Text d') m prf2 in Refl
+    assertReverseSchema (Convert KBoolean _ _) (SNumber _) prf | True = absurd $ prf
+    assertReverseSchema (Convert KBoolean _ _) (SText _) prf | True = absurd $ prf
+    assertReverseSchema (Convert KBoolean _ _) (SArray _ _) prf | True = absurd $ prf
+    assertReverseSchema (Convert KBoolean _ _) (SObject _) prf | True = absurd $ prf
+    assertReverseSchema (Convert KNumber _ _) SFalse prf | True = absurd $ prf
+    assertReverseSchema (Convert KNumber _ _) (SBoolean _) prf | True = absurd $ prf
+    assertReverseSchema (Convert KNumber b m) (SNumber d) prf | True with (convertDefault (Number d) m) proof prf2
+        assertReverseSchema (Convert KNumber _ _) (SNumber _) prf | True | Nothing = absurd $ prf
+        assertReverseSchema (Convert KNumber KBoolean m) (SNumber d) prf | True | (Just (Boolean d')) =
+            rewrite convertIsValidAfterReverse KNumber KBoolean m prf1
+            in rewrite convertDefaultAfterReverse (Number d) (Boolean d') m prf2 in Refl
+        assertReverseSchema (Convert KNumber KBoolean _) (SNumber _) prf | True | (Just (Number _)) = absurd $ prf
+        assertReverseSchema (Convert KNumber KBoolean _) (SNumber _) prf | True | (Just (Text _)) = absurd $ prf
+        assertReverseSchema (Convert KNumber KNumber _) (SNumber _) prf | True | (Just (Boolean _)) = absurd $ prf
+        assertReverseSchema (Convert KNumber KNumber m) (SNumber d) prf | True | (Just (Number d')) =
+            rewrite convertIsValidAfterReverse KNumber KNumber m prf1
+            in rewrite convertDefaultAfterReverse (Number d) (Number d') m prf2 in Refl
+        assertReverseSchema (Convert KNumber KNumber _) (SNumber _) prf | True | (Just (Text _)) = absurd $ prf
+        assertReverseSchema (Convert KNumber KText _) (SNumber _) prf | True | (Just (Boolean _)) = absurd $ prf
+        assertReverseSchema (Convert KNumber KText _) (SNumber _) prf | True | (Just (Number _)) = absurd $ prf
+        assertReverseSchema (Convert KNumber KText m) (SNumber d) prf | True | (Just (Text d')) =
+            rewrite convertIsValidAfterReverse KNumber KText m prf1
+            in rewrite convertDefaultAfterReverse (Number d) (Text d') m prf2 in Refl
+    assertReverseSchema (Convert KNumber _ _) (SText _) prf | True = absurd $ prf
+    assertReverseSchema (Convert KNumber _ _) (SArray _ _) prf | True = absurd $ prf
+    assertReverseSchema (Convert KNumber _ _) (SObject _) prf | True = absurd $ prf
+    assertReverseSchema (Convert KText _ _) SFalse prf | True = absurd $ prf
+    assertReverseSchema (Convert KText _ _) (SBoolean _) prf | True = absurd $ prf
+    assertReverseSchema (Convert KText _ _) (SNumber _) prf | True = absurd $ prf
+    assertReverseSchema (Convert KText b m) (SText d) prf | True with (convertDefault (Text d) m) proof prf2
+        assertReverseSchema (Convert KText _ _) (SText _) prf | True | Nothing = absurd $ prf
+        assertReverseSchema (Convert KText KBoolean m) (SText d) prf | True | (Just (Boolean d')) =
+            rewrite convertIsValidAfterReverse KText KBoolean m prf1
+            in rewrite convertDefaultAfterReverse (Text d) (Boolean d') m prf2 in Refl
+        assertReverseSchema (Convert KText KBoolean _) (SText _) prf | True | (Just (Number _)) = absurd $ prf
+        assertReverseSchema (Convert KText KBoolean _) (SText _) prf | True | (Just (Text _)) = absurd $ prf
+        assertReverseSchema (Convert KText KNumber _) (SText _) prf | True | (Just (Boolean _)) = absurd $ prf
+        assertReverseSchema (Convert KText KNumber m) (SText d) prf | True | (Just (Number d')) =
+            rewrite convertIsValidAfterReverse KText KNumber m prf1
+            in rewrite convertDefaultAfterReverse (Text d) (Number d') m prf2 in Refl
+        assertReverseSchema (Convert KText KNumber _) (SText _) prf | True | (Just (Text _)) = absurd $ prf
+        assertReverseSchema (Convert KText KText _) (SText _) prf | True | (Just (Boolean _)) = absurd $ prf
+        assertReverseSchema (Convert KText KText _) (SText _) prf | True | (Just (Number _)) = absurd $ prf
+        assertReverseSchema (Convert KText KText m) (SText d) prf | True | (Just (Text d')) =
+            rewrite convertIsValidAfterReverse KText KText m prf1
+            in rewrite convertDefaultAfterReverse (Text d) (Text d') m prf2 in Refl
+    assertReverseSchema (Convert KText _ _) (SArray _ _) prf | True = absurd $ prf
+    assertReverseSchema (Convert KText _ _) (SObject _) prf | True = absurd $ prf
 assertReverseSchema _ _ _ = ?todo

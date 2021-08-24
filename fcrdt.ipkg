@@ -7,8 +7,7 @@ depends = base, contrib
 modules =
     Fcrdt.Lens,
     Fcrdt.Main,
-    Fcrdt.Map,
-    Fcrdt.Sf
+    Fcrdt.Map
 
 main = Fcrdt.Main
 

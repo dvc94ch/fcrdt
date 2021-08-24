@@ -50,6 +50,14 @@ inv_bool True False _ = Refl
 inv_bool True True Refl impossible
 
 public export
+and_split : (a : Bool) -> (b : Lazy Bool) -> (a && b = True) -> (a = True, b = True)
+and_split False (Delay False) Refl impossible
+and_split False (Delay True) Refl impossible
+and_split True (Delay False) Refl impossible
+and_split True (Delay True) _ = (Refl, Refl)
+
+
+public export
 beq_nat : (n : Nat) -> n == n = True
 beq_nat 0 = Refl
 beq_nat (S k) = beq_nat k
@@ -497,3 +505,7 @@ public export
 it_is_just : (a : Maybe b) -> (a = Just c) -> IsJust a
 it_is_just Nothing Refl impossible
 it_is_just (Just x) prf = ItIsJust
+
+public export
+contra : IsJust a -> a = Nothing -> Void
+contra ItIsJust Refl impossible

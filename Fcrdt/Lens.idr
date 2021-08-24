@@ -116,23 +116,6 @@ data Lens =
 
 %name Lens lens, l, l1, l2
 
-convertIsValid : PrimitiveKind -> PrimitiveKind -> List (PrimitiveValue, PrimitiveValue) -> Bool
-convertIsValid _ _ [] = True
-convertIsValid kx ky ((x, y) :: map) =
-    primitiveKindOf x == kx && primitiveKindOf y == ky && convertIsValid kx ky map
-
-convert : PrimitiveValue -> List (PrimitiveValue, PrimitiveValue) -> Maybe PrimitiveValue
-convert _ [] = Nothing
-convert key ((k, v) :: xs) = if key == k then Just v else convert key xs
-
-convertDefault : PrimitiveValue -> List (PrimitiveValue, PrimitiveValue) -> Maybe PrimitiveValue
-convertDefault d m =
-    case convert d m of
-        Just d' => case convert d' m of
-            Just d2 => if d == d2 then Just d' else Nothing
-            Nothing => Nothing
-        Nothing => Nothing
-
 Eq Lens where
     Make k1 == Make k2 = k1 == k2
     Destroy k1 == Destroy k2 = k1 == k2
@@ -150,6 +133,53 @@ Eq Lens where
     Convert k11 k21 f1 == Convert k12 k22 f2 = k11 == k12 && k22 == k22 && f1 == f2
     _ == _ = False
 
+
+convertFlip : List (PrimitiveValue, PrimitiveValue) -> List (PrimitiveValue, PrimitiveValue)
+convertFlip [] = []
+convertFlip ((x, y) :: xs) = (y, x) :: (convertFlip xs)
+
+convertIsValid : PrimitiveKind -> PrimitiveKind -> List (PrimitiveValue, PrimitiveValue) -> Bool
+convertIsValid _ _ [] = True
+convertIsValid kx ky ((x, y) :: map) =
+    primitiveKindOf x == kx && primitiveKindOf y == ky && convertIsValid kx ky map
+
+convert : PrimitiveValue -> List (PrimitiveValue, PrimitiveValue) -> Maybe PrimitiveValue
+convert _ [] = Nothing
+convert key ((k, v) :: xs) = if key == k then Just v else convert key xs
+
+convertDefault : PrimitiveValue -> List (PrimitiveValue, PrimitiveValue) -> Maybe PrimitiveValue
+convertDefault d m =
+    case convert d m of
+        Just d' => case convert d' m of
+            Just d2 => if d == d2 then Just d' else Nothing
+            Nothing => Nothing
+        Nothing => Nothing
+
+convertIsValidAfterReverse : (a, b : PrimitiveKind) -> (m : List (PrimitiveValue, PrimitiveValue)) ->
+    convertIsValid a b m = True -> convertIsValid b a (convertFlip m) = True
+convertIsValidAfterReverse a b [] prf = Refl
+convertIsValidAfterReverse a b ((x, y) :: xs) prf =
+    let sprf = and_split (primitiveKindOf x == a) (primitiveKindOf y == b && Delay (convertIsValid a b xs)) prf
+        sprf2 = and_split (primitiveKindOf y == b) (convertIsValid a b xs) (snd sprf)
+        ind = convertIsValidAfterReverse a b xs (snd sprf2)
+    in rewrite fst sprf2 in rewrite fst sprf in ind
+
+convertDefaultAfterReverse : (d, d' : PrimitiveValue) -> (m : List (PrimitiveValue, PrimitiveValue)) ->
+    convertDefault d m = Just d' -> convertDefault d' (convertFlip m) = Just d
+convertDefaultAfterReverse d d' m prf with (convert d m) proof prf1
+    convertDefaultAfterReverse d d' m prf | Nothing = absurd $ prf
+    convertDefaultAfterReverse d d' m prf | (Just d'2) with (convert d'2 m) proof prf2
+        convertDefaultAfterReverse d d' m prf | (Just d'2) | Nothing = absurd $ prf
+        convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) with (d == d2) proof prf3
+            convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) | False = absurd $ prf
+            convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) | True with (convert d' (convertFlip m)) proof prf4
+                convertDefaultAfterReverse d d' [] prf | (Just d'2) | (Just d2) | True | Nothing = absurd $ prf1
+                convertDefaultAfterReverse d d' (x :: xs) prf | (Just d'2) | (Just d2) | True | Nothing = ?h_7
+                convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) | True | (Just x) = ?h_8
+            {-convertDefaultAfterReverse d d' [] prf | (Just d'2) | (Just d2) | True = absurd $ prf1
+            convertDefaultAfterReverse d d' (x :: xs) prf | (Just d'2) | (Just d2) | True = ?h_2-}
+
+
 reverseLens : Lens -> Lens
 reverseLens (Make k) = Destroy k
 reverseLens (Destroy k) = Make k
@@ -164,7 +194,7 @@ reverseLens (LensIn x y) = LensIn x (reverseLens y)
 reverseLens (LensMap x) = LensMap (reverseLens x)
 reverseLens (Require k b) = Require k (not b)
 reverseLens (Default v1 v2) = Default v2 v1
-reverseLens (Convert a b m) = Convert b a (map (\(a, b) => (b, a)) m)
+reverseLens (Convert a b m) = Convert b a (convertFlip m)
 
 applyLensSchema : Lens -> Schema -> Maybe Schema
 applyLensSchema (Make (KPrimitive KBoolean)) SFalse = Just (SBoolean False)
@@ -292,18 +322,9 @@ applyTwoLenses a b s =
 reverseSchema : Lens -> Schema -> Maybe Schema
 reverseSchema l s = applyTwoLenses l (reverseLens l) s
 
-convertIsValidAfterReverse : (a, b : PrimitiveKind) -> (m : List (PrimitiveValue, PrimitiveValue)) ->
-    convertIsValid a b m = True -> convertIsValid b a (map (\(a, b) => (b, a)) m) = True
-convertIsValidAfterReverse a b [] prf = Refl
-convertIsValidAfterReverse a b ((x, y) :: xs) prf = ?convertIsValidAfterReverse_rhs_6
-
-convertDefaultAfterReverse : (d, d' : PrimitiveValue) -> (m : List (PrimitiveValue, PrimitiveValue)) ->
-    convertDefault d m = Just d' -> convertDefault d' (map (\(a, b) => (b, a)) m) = Just d
-convertDefaultAfterReverse (Boolean x) (Boolean y) prf = ?convertDefaultAfterReverse_rhs_4
-convertDefaultAfterReverse (Boolean x) (Number k) prf = ?convertDefaultAfterReverse_rhs_5
-convertDefaultAfterReverse (Boolean x) (Text y) prf = ?convertDefaultAfterReverse_rhs_6
-convertDefaultAfterReverse (Number k) d' prf = ?convertDefaultAfterReverse_rhs_2
-convertDefaultAfterReverse (Text x) d' prf = ?convertDefaultAfterReverse_rhs_3
+assertReverseSchema' : (lens : Lens) -> (schema : Schema) -> (schema' : Schema) ->
+    applyLensSchema lens schema = Just schema' ->
+    applyLensSchema (reverseLens lens) schema' = Just schema
 
 ||| Forwards and backwards compatibility requires schema transformations to be reversible
 assertReverseSchema :
@@ -311,7 +332,7 @@ assertReverseSchema :
     (schema: Schema) ->
     (IsJust (applyLensSchema lens schema)) ->
     (reverseSchema lens schema = Just schema)
-{-assertReverseSchema (Make (KPrimitive KBoolean)) SFalse _ = Refl
+assertReverseSchema (Make (KPrimitive KBoolean)) SFalse _ = Refl
 assertReverseSchema (Make (KPrimitive KBoolean)) (SBoolean _) ItIsJust impossible
 assertReverseSchema (Make (KPrimitive KBoolean)) (SNumber _) ItIsJust impossible
 assertReverseSchema (Make (KPrimitive KBoolean)) (SText _) ItIsJust impossible
@@ -358,8 +379,7 @@ assertReverseSchema (Destroy (KPrimitive KNumber)) (SObject _) ItIsJust impossib
 assertReverseSchema (Destroy (KPrimitive KText)) SFalse ItIsJust impossible
 assertReverseSchema (Destroy (KPrimitive KText)) (SBoolean _) ItIsJust impossible
 assertReverseSchema (Destroy (KPrimitive KText)) (SNumber _) ItIsJust impossible
-assertReverseSchema (Destroy (KPrimitive KText)) (SText []) _ = Refl
-assertReverseSchema (Destroy (KPrimitive KText)) (SText (_ :: _)) ItIsJust impossible
+assertReverseSchema (Destroy (KPrimitive KText)) (SText _) _ = ?h
 assertReverseSchema (Destroy (KPrimitive KText)) (SArray _ _) ItIsJust impossible
 assertReverseSchema (Destroy (KPrimitive KText)) (SObject _) ItIsJust impossible
 assertReverseSchema (Destroy KArray) SFalse ItIsJust impossible
@@ -382,7 +402,8 @@ assertReverseSchema (Destroy KObject) (SArray _ _) ItIsJust impossible
 assertReverseSchema (Destroy KObject) (SObject m) prf with (isEmpty m)
     assertReverseSchema (Destroy KObject) (SObject _) prf | False = absurd $ prf
     assertReverseSchema (Destroy KObject) (SObject m) prf | True = ?goodEnoughToConvinceMe
-assertReverseSchema (AddProperty _) SFalse ItIsJust impossible
+assertReverseSchema _ _ _ = ?todo
+{-assertReverseSchema (AddProperty _) SFalse ItIsJust impossible
 assertReverseSchema (AddProperty _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SNumber _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SText _) ItIsJust impossible
@@ -528,28 +549,18 @@ assertReverseSchema (LensIn k l) (SObject m) prf with (get k m) proof prf1
         assertReverseSchema (LensIn _ _) (SObject _) prf | (Just (_, _)) | Nothing = absurd $ prf
         assertReverseSchema (LensIn k l) (SObject m) prf | (Just (r, s)) | (Just s') =
             rewrite update_eq m k (Just (r, s'))
-            in let
-                ij = it_is_just (applyLensSchema l s) prf2
-                ind = assertReverseSchema (reverseLens l) s'
-            in ?hole
-            -- rewrite ind in ?assertReverseSchema_rhs_26
+            in rewrite assertReverseSchema' l s s' prf2
+            in rewrite update_shadow m k (Just (r, s')) (Just (r, s))
+            in rewrite update_same m k (Just (r, s)) prf1
+            in Refl
 assertReverseSchema (LensMap _) SFalse ItIsJust impossible
 assertReverseSchema (LensMap _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (LensMap _) (SNumber _) ItIsJust impossible
 assertReverseSchema (LensMap _) (SText _) ItIsJust impossible
 assertReverseSchema (LensMap l) (SArray e s) prf with (applyLensSchema l s) proof prf1
     assertReverseSchema (LensMap _) (SArray _ _) prf | Nothing = absurd $ prf
-    assertReverseSchema (LensMap l) (SArray e s) prf | (Just s') with (applyLensSchema (reverseLens l) s') proof prf2
-        assertReverseSchema (LensMap l) (SArray e s) prf | (Just s') | Nothing =
-            let
-                ij = it_is_just (applyLensSchema l s) prf1
-                ind = assertReverseSchema l s ij
-            in void $ ?reverseLensMap
-        assertReverseSchema (LensMap l) (SArray e s) prf | (Just s') | (Just s'') =
-            let
-                ij = it_is_just (applyLensSchema l s) prf1
-                ind = assertReverseSchema l s ij
-            in ?h_2
+    assertReverseSchema (LensMap l) (SArray e s) prf | (Just s') =
+        rewrite assertReverseSchema' l s s' prf1 in Refl
 assertReverseSchema (LensMap _) (SObject _) ItIsJust impossible
 assertReverseSchema (Require _ _) SFalse ItIsJust impossible
 assertReverseSchema (Require _ _) (SBoolean _) ItIsJust impossible
@@ -602,7 +613,7 @@ assertReverseSchema (Default (Text t) (Text t')) (SText t2) prf with (t == t2) p
         rewrite beq_str t' in
         rewrite eq_str t t2 prf1 in Refl
 assertReverseSchema (Default (Text _) (Text _)) (SArray _ _) ItIsJust impossible
-assertReverseSchema (Default (Text _) (Text _)) (SObject _) ItIsJust impossible-}
+assertReverseSchema (Default (Text _) (Text _)) (SObject _) ItIsJust impossible
 assertReverseSchema (Convert a b m) s prf with (convertIsValid a b m) proof prf1
     assertReverseSchema (Convert KBoolean _ _) _ prf | False = absurd $ prf
     assertReverseSchema (Convert KNumber _ _) _ prf | False = absurd $ prf
@@ -672,5 +683,4 @@ assertReverseSchema (Convert a b m) s prf with (convertIsValid a b m) proof prf1
             rewrite convertIsValidAfterReverse KText KText m prf1
             in rewrite convertDefaultAfterReverse (Text d) (Text d') m prf2 in Refl
     assertReverseSchema (Convert KText _ _) (SArray _ _) prf | True = absurd $ prf
-    assertReverseSchema (Convert KText _ _) (SObject _) prf | True = absurd $ prf
-assertReverseSchema _ _ _ = ?todo
+    assertReverseSchema (Convert KText _ _) (SObject _) prf | True = absurd $ prf-}

@@ -19,6 +19,75 @@ Eq PrimitiveValue where
     Text t1 == Text t2 = t1 == t2
     _ == _ = False
 
+Uninhabited (a = b) => Uninhabited (Boolean a = Boolean b) where
+    uninhabited Refl @{ab} = uninhabited @{ab} Refl
+
+Uninhabited (Boolean a = Number b) where
+    uninhabited Refl impossible
+
+Uninhabited (Boolean a = Text b) where
+    uninhabited Refl impossible
+
+Uninhabited (a = b) => Uninhabited (Number a = Number b) where
+    uninhabited Refl @{ab} = uninhabited @{ab} Refl
+
+Uninhabited (Number a = Boolean b) where
+    uninhabited Refl impossible
+
+Uninhabited (Number a = Text b) where
+    uninhabited Refl impossible
+
+Uninhabited (a = b) => Uninhabited (Text a = Text b) where
+    uninhabited Refl @{ab} = uninhabited @{ab} Refl
+
+Uninhabited (Text a = Boolean b) where
+    uninhabited Refl impossible
+
+Uninhabited (Text a = Number b) where
+    uninhabited Refl impossible
+
+boolean : (v : PrimitiveValue) -> Maybe Bool
+boolean (Boolean b) = Just b
+boolean _ = Nothing
+
+number : (v : PrimitiveValue) -> Maybe Nat
+number (Number n) = Just n
+number _ = Nothing
+
+text : (v : PrimitiveValue) -> Maybe (List Char)
+text (Text t) = Just t
+text _ = Nothing
+
+beq_prim : (v : PrimitiveValue) ->  v == v = True
+beq_prim (Boolean b) = beq_bool b
+beq_prim (Number n) = beq_nat n
+beq_prim (Text t) = beq_str t
+
+beq_prim2 : (v1, v2 : PrimitiveValue) -> (v1 == v2 = True) -> v1 = v2
+beq_prim2 (Boolean x) (Boolean y) prf = rewrite eq_bool x y prf in Refl
+beq_prim2 (Boolean _) (Number _) Refl impossible
+beq_prim2 (Boolean _) (Text _) Refl impossible
+beq_prim2 (Number _) (Boolean _) Refl impossible
+beq_prim2 (Number k) (Number j) prf = rewrite eq_nat k j prf in Refl
+beq_prim2 (Number _) (Text _) Refl impossible
+beq_prim2 (Text _) (Boolean _) Refl impossible
+beq_prim2 (Text _) (Number _) Refl impossible
+beq_prim2 (Text xs) (Text ys) prf = rewrite eq_str xs ys prf in Refl
+
+neq_prim : (v1, v2 : PrimitiveValue) -> (v1 == v2 = False) -> Not (v1 = v2)
+neq_prim (Boolean x) (Boolean y) prf =
+    neq_bool x y prf . justInjective . cong boolean
+neq_prim (Boolean x) (Number k) prf = uninhabited
+neq_prim (Boolean x) (Text xs) prf = uninhabited
+neq_prim (Number k) (Boolean x) prf = uninhabited
+neq_prim (Number k) (Number j) prf =
+    neq_nat k j prf . justInjective . cong number
+neq_prim (Number k) (Text xs) prf = uninhabited
+neq_prim (Text xs) (Boolean x) prf = uninhabited
+neq_prim (Text xs) (Number k) prf = uninhabited
+neq_prim (Text xs) (Text ys) prf =
+    neq_str xs ys prf . justInjective . cong text
+
 data PrimitiveKind =
       KBoolean
     | KNumber
@@ -137,6 +206,10 @@ convertFlip : List (PrimitiveValue, PrimitiveValue) -> List (PrimitiveValue, Pri
 convertFlip [] = []
 convertFlip ((x, y) :: xs) = (y, x) :: (convertFlip xs)
 
+convertFlipTwice : (m : List (PrimitiveValue, PrimitiveValue)) -> convertFlip (convertFlip m) = m
+convertFlipTwice [] = Refl
+convertFlipTwice ((x, y) :: xs) = rewrite convertFlipTwice xs in Refl
+
 convertIsValid : PrimitiveKind -> PrimitiveKind -> List (PrimitiveValue, PrimitiveValue) -> Bool
 convertIsValid _ _ [] = True
 convertIsValid kx ky ((x, y) :: map) =
@@ -146,10 +219,11 @@ convert : PrimitiveValue -> List (PrimitiveValue, PrimitiveValue) -> Maybe Primi
 convert _ [] = Nothing
 convert key ((k, v) :: xs) = if key == k then Just v else convert key xs
 
+
 convertDefault : PrimitiveValue -> List (PrimitiveValue, PrimitiveValue) -> Maybe PrimitiveValue
 convertDefault d m =
     case convert d m of
-        Just d' => case convert d' m of
+        Just d' => case convert d' (convertFlip m) of
             Just d2 => if d == d2 then Just d' else Nothing
             Nothing => Nothing
         Nothing => Nothing
@@ -167,16 +241,32 @@ convertDefaultAfterReverse : (d, d' : PrimitiveValue) -> (m : List (PrimitiveVal
     convertDefault d m = Just d' -> convertDefault d' (convertFlip m) = Just d
 convertDefaultAfterReverse d d' m prf with (convert d m) proof prf1
     convertDefaultAfterReverse d d' m prf | Nothing = absurd $ prf
-    convertDefaultAfterReverse d d' m prf | (Just d'2) with (convert d'2 m) proof prf2
+    convertDefaultAfterReverse d d' m prf | (Just d'2) with (convert d'2 (convertFlip m)) proof prf2
         convertDefaultAfterReverse d d' m prf | (Just d'2) | Nothing = absurd $ prf
         convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) with (d == d2) proof prf3
             convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) | False = absurd $ prf
             convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) | True with (convert d' (convertFlip m)) proof prf4
-                convertDefaultAfterReverse d d' [] prf | (Just d'2) | (Just d2) | True | Nothing = absurd $ prf1
-                convertDefaultAfterReverse d d' (x :: xs) prf | (Just d'2) | (Just d2) | True | Nothing = ?h_7
-                convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) | True | (Just x) = ?h_8
-            {-convertDefaultAfterReverse d d' [] prf | (Just d'2) | (Just d2) | True = absurd $ prf1
-            convertDefaultAfterReverse d d' (x :: xs) prf | (Just d'2) | (Just d2) | True = ?h_2-}
+                convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) | True | Nothing =
+                    rewrite sym prf4
+                    in rewrite sym $ justInjective prf
+                    in rewrite prf2
+                    in rewrite beq_prim2 d d2 prf3
+                    in Refl
+                convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) | True | (Just x) with (x == d) proof prf5
+                    convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) | True | (Just x) | True =
+                        rewrite convertFlipTwice m
+                        in rewrite beq_prim2 x d prf5
+                        in rewrite prf1
+                        in rewrite justInjective prf
+                        in rewrite beq_prim d'
+                        in Refl
+                    convertDefaultAfterReverse d d' m prf | (Just d'2) | (Just d2) | True | (Just x) | False =
+                        rewrite convertFlipTwice m
+                        in void $ neq_prim x d prf5 $ justInjective $
+                            rewrite sym prf4
+                            in rewrite beq_prim2 d d2 prf3
+                            in rewrite sym prf2
+                            in rewrite justInjective prf in Refl
 
 
 reverseLens : Lens -> Lens
@@ -326,6 +416,7 @@ assertReverseSchema' : (lens : Lens) -> (schema : Schema) -> (schema' : Schema) 
 assertReverseSchema' lens schema schema' prf = ?assertReverseSchema'_rhs
 
 
+{-
 ||| Forwards and backwards compatibility requires schema transformations to be reversible
 assertReverseSchema :
     (lens: Lens) ->
@@ -683,3 +774,4 @@ assertReverseSchema (Convert a b m) s prf with (convertIsValid a b m) proof prf1
             in rewrite convertDefaultAfterReverse (Text d) (Text d') m prf2 in Refl
     assertReverseSchema (Convert KText _ _) (SArray _ _) prf | True = absurd $ prf
     assertReverseSchema (Convert KText _ _) (SObject _) prf | True = absurd $ prf
+-}

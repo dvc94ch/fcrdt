@@ -43,6 +43,13 @@ eq_bool True False Refl impossible
 eq_bool True True _ = Refl
 
 public export
+neq_bool : (b1, b2 : Bool) -> b1 == b2 = False -> Not (b1 = b2)
+neq_bool False False prf = absurd $ prf
+neq_bool False True prf = uninhabited
+neq_bool True False prf = uninhabited
+neq_bool True True prf = absurd $ prf
+
+public export
 inv_bool : (b1, b2 : Bool) -> b1 = (not b2) -> b2 = (not b1)
 inv_bool False False Refl impossible
 inv_bool False True _ = Refl
@@ -70,6 +77,7 @@ it_is_just : (a : Maybe b) -> (a = Just c) -> IsJust a
 it_is_just Nothing Refl impossible
 it_is_just (Just x) prf = ItIsJust
 
+
 public export
 contra : IsJust a -> a = Nothing -> Void
 contra ItIsJust Refl impossible
@@ -82,45 +90,27 @@ beq_nat 0 = Refl
 beq_nat (S k) = beq_nat k
 
 public export
-beq_implies_eq_nat : (n1, n2 : Nat) -> n1 == n2 = True -> n1 = n2
-beq_implies_eq_nat 0 0 prf = Refl
-beq_implies_eq_nat 0 (S _) Refl impossible
-beq_implies_eq_nat (S _) 0 Refl impossible
-beq_implies_eq_nat (S k) (S j) prf =
-    let ind = beq_implies_eq_nat k j prf in
+eq_nat : (n1, n2 : Nat) -> n1 == n2 = True -> n1 = n2
+eq_nat 0 0 prf = Refl
+eq_nat 0 (S _) Refl impossible
+eq_nat (S _) 0 Refl impossible
+eq_nat (S k) (S j) prf =
+    let ind = eq_nat k j prf in
         rewrite ind in Refl
 
-eq_implies_beq_nat : (n1, n2 : Nat) -> n1 = n2 -> n1 == n2 = True
-eq_implies_beq_nat n1 n2 prf = rewrite prf in beq_nat n2
-
-not_succ_implies_not : Not (S k = S j) -> Not (k = j)
-not_succ_implies_not f prf = f $ cong S prf
-
-neq_implies_bneq_nat : (n1, n2 : Nat) -> Not (n1 = n2) -> n1 == n2 = False
-neq_implies_bneq_nat 0 0 prf = absurd $ prf Refl
-neq_implies_bneq_nat 0 (S k) prf = Refl
-neq_implies_bneq_nat (S k) 0 prf = Refl
-neq_implies_bneq_nat (S k) (S j) prf =
-    let
-        prf = not_succ_implies_not prf
-        ind = neq_implies_bneq_nat k j prf
-    in rewrite ind in Refl
-
-not_implies_not_succ : Not (k = j) -> Not (S k = S j)
-not_implies_not_succ f prf = f $ cong pred prf
-
-bneq_implies_neq_nat : (n1, n2 : Nat) -> n1 == n2 = False -> Not (n1 = n2)
-bneq_implies_neq_nat 0 0 prf = absurd prf
-bneq_implies_neq_nat 0 (S k) Refl = uninhabited
-bneq_implies_neq_nat (S k) 0 Refl = uninhabited
-bneq_implies_neq_nat (S k) (S j) prf =
-    let ind = bneq_implies_neq_nat k j prf in
-        not_implies_not_succ ind
+public export
+neq_nat : (n1, n2 : Nat) -> n1 == n2 = False -> Not (n1 = n2)
+neq_nat 0 0 prf = absurd prf
+neq_nat 0 (S k) Refl = uninhabited
+neq_nat (S k) 0 Refl = uninhabited
+neq_nat (S k) (S j) prf =
+    let ind = neq_nat k j prf in
+        \p => ind $ cong pred p
 
 beq_natP : (n, m : Nat) -> Reflect (n = m) (n == m)
 beq_natP n m with (n == m) proof h
-    beq_natP n m | False = ReflectF (bneq_implies_neq_nat n m h) Refl
-    beq_natP n m | True = ReflectT (beq_implies_eq_nat n m h) Refl
+    beq_natP n m | False = ReflectF (neq_nat n m h) Refl
+    beq_natP n m | True = ReflectT (eq_nat n m h) Refl
 
 
 -- String utils
@@ -162,12 +152,7 @@ beq_key (MkKey n) = beq_nat n
 public export
 bne_key : (k1, k2 : Key) -> k1 == k2 = False -> Not (k1 = k2)
 bne_key (MkKey k) (MkKey j) prf prf1 =
-    bneq_implies_neq_nat k j prf (cong key_to_nat prf1)
-
-public export
-ne_key : (k1, k2 : Key) -> Not (k1 = k2) -> k1 == k2 = False
-ne_key (MkKey k) (MkKey j) prf =
-    neq_implies_bneq_nat k j (\p => prf $ rewrite p in Refl)
+    neq_nat k j prf (cong key_to_nat prf1)
 
 public export
 beq_keyP : (n, m : Key) -> Reflect (n = m) (n == m)

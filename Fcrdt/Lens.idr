@@ -9,7 +9,7 @@ import Fcrdt.Map
 data PrimitiveValue =
       Boolean Bool
     | Number Nat
-    | Text String
+    | Text (List Char)
 
 %name PrimitiveValue val, v, v1, v2
 
@@ -67,7 +67,7 @@ data Schema =
       SFalse
     | SBoolean Bool
     | SNumber Nat
-    | SText String
+    | SText (List Char)
     | SArray Bool Schema
     | SObject (Map (Bool, Schema))
 
@@ -83,19 +83,18 @@ validate (SArray allowEmpty schema) (Array []) = allowEmpty
 validate (SArray _ schema) (Array (x :: xs)) =
     assert_total (validate schema x) && assert_total (validate (SArray True schema) (Array xs))
 validate (SArray _ _) _ = False
-validate (SObject smap) (Object vmap) = validateProperties (keys vmap) vmap smap && validateRequired (keys smap) smap vmap where
-    validateProperties : Set -> Map Value -> Map (Bool, Schema) -> Bool
-    validateProperties Empty _ _ = True
-    validateProperties (Entry k ks _) vmap smap with (get k vmap, get k smap)
-        validateProperties (Entry _ _ _) _ _ | (Nothing, _) = False
-        validateProperties (Entry _ _ _) _  _ | (_, Nothing) = False
-        validateProperties (Entry k ks _) vmap smap | (Just value , Just (_, schema)) =
-            assert_total (validate schema value) && validateProperties ks vmap smap
-    validateRequired : Set -> Map (Bool, Schema) -> Map Value -> Bool
-    validateRequired Empty _ _ = True
-    validateRequired (Entry k ks _) smap vmap with (get k smap, get k vmap)
-        validateRequired (Entry k ks _) smap vmap | (Just (True, _), Nothing) = False
-        validateRequired (Entry k ks _) smap vmap | (_, _) = validateRequired ks smap vmap
+validate (SObject smap) (Object vmap) = validateProperties vmap smap && validateRequired smap vmap where
+    validateProperties : Map Value -> Map (Bool, Schema) -> Bool
+    validateProperties Empty _ = True
+    validateProperties (Entry k v m _) smap with (get k smap)
+        validateProperties (Entry _ _ _ _) _ | Nothing = False
+        validateProperties (Entry k v m _) smap | Just (_, schema) =
+            assert_total (validate schema v) && validateProperties m smap
+    validateRequired : Map (Bool, Schema) -> Map Value -> Bool
+    validateRequired Empty _ = True
+    validateRequired (Entry k v m _) vmap with (get k vmap)
+        validateRequired (Entry k (True, _) m _) vmap | Nothing = False
+        validateRequired (Entry k (_, _) m _) vmap | _ = validateRequired m vmap
 validate (SObject _) _ = False
 
 data Lens =
@@ -199,17 +198,16 @@ reverseLens (Convert a b m) = Convert b a (convertFlip m)
 applyLensSchema : Lens -> Schema -> Maybe Schema
 applyLensSchema (Make (KPrimitive KBoolean)) SFalse = Just (SBoolean False)
 applyLensSchema (Make (KPrimitive KNumber)) SFalse = Just (SNumber 0)
-applyLensSchema (Make (KPrimitive KText)) SFalse = Just (SText "")
+applyLensSchema (Make (KPrimitive KText)) SFalse = Just (SText [])
 applyLensSchema (Make KArray) SFalse = Just (SArray True SFalse)
-applyLensSchema (Make KObject) SFalse = Just (SObject empty)
+applyLensSchema (Make KObject) SFalse = Just (SObject Empty)
 applyLensSchema (Make _) _ = Nothing
 applyLensSchema (Destroy (KPrimitive KBoolean)) (SBoolean False) = Just SFalse
 applyLensSchema (Destroy (KPrimitive KNumber)) (SNumber 0) = Just SFalse
-applyLensSchema (Destroy (KPrimitive KText)) (SText "") = Just SFalse
+applyLensSchema (Destroy (KPrimitive KText)) (SText []) = Just SFalse
 applyLensSchema (Destroy KArray) (SArray True SFalse) = Just SFalse
-applyLensSchema (Destroy KObject) (SObject m) with (isEmpty m)
-    applyLensSchema (Destroy KObject) (SObject m) | True = Just SFalse
-    applyLensSchema (Destroy KObject) (SObject m) | False = Nothing
+applyLensSchema (Destroy KObject) (SObject Empty) = Just SFalse
+applyLensSchema (Destroy KObject) (SObject _) = Nothing
 applyLensSchema (Destroy _) _ = Nothing
 applyLensSchema (AddProperty key) (SObject smap) =
     case get key smap of
@@ -325,6 +323,8 @@ reverseSchema l s = applyTwoLenses l (reverseLens l) s
 assertReverseSchema' : (lens : Lens) -> (schema : Schema) -> (schema' : Schema) ->
     applyLensSchema lens schema = Just schema' ->
     applyLensSchema (reverseLens lens) schema' = Just schema
+assertReverseSchema' lens schema schema' prf = ?assertReverseSchema'_rhs
+
 
 ||| Forwards and backwards compatibility requires schema transformations to be reversible
 assertReverseSchema :
@@ -379,7 +379,8 @@ assertReverseSchema (Destroy (KPrimitive KNumber)) (SObject _) ItIsJust impossib
 assertReverseSchema (Destroy (KPrimitive KText)) SFalse ItIsJust impossible
 assertReverseSchema (Destroy (KPrimitive KText)) (SBoolean _) ItIsJust impossible
 assertReverseSchema (Destroy (KPrimitive KText)) (SNumber _) ItIsJust impossible
-assertReverseSchema (Destroy (KPrimitive KText)) (SText _) _ = ?h
+assertReverseSchema (Destroy (KPrimitive KText)) (SText []) _ = Refl
+assertReverseSchema (Destroy (KPrimitive KText)) (SText (_ :: _)) ItIsJust impossible
 assertReverseSchema (Destroy (KPrimitive KText)) (SArray _ _) ItIsJust impossible
 assertReverseSchema (Destroy (KPrimitive KText)) (SObject _) ItIsJust impossible
 assertReverseSchema (Destroy KArray) SFalse ItIsJust impossible
@@ -399,11 +400,9 @@ assertReverseSchema (Destroy KObject) (SBoolean _) ItIsJust impossible
 assertReverseSchema (Destroy KObject) (SNumber _) ItIsJust impossible
 assertReverseSchema (Destroy KObject) (SText _) ItIsJust impossible
 assertReverseSchema (Destroy KObject) (SArray _ _) ItIsJust impossible
-assertReverseSchema (Destroy KObject) (SObject m) prf with (isEmpty m)
-    assertReverseSchema (Destroy KObject) (SObject _) prf | False = absurd $ prf
-    assertReverseSchema (Destroy KObject) (SObject m) prf | True = ?goodEnoughToConvinceMe
-assertReverseSchema _ _ _ = ?todo
-{-assertReverseSchema (AddProperty _) SFalse ItIsJust impossible
+assertReverseSchema (Destroy KObject) (SObject Empty) _ = Refl
+assertReverseSchema (Destroy KObject) (SObject (Entry _ _ _ _)) prf = absurd $ prf
+assertReverseSchema (AddProperty _) SFalse ItIsJust impossible
 assertReverseSchema (AddProperty _) (SBoolean _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SNumber _) ItIsJust impossible
 assertReverseSchema (AddProperty _) (SText _) ItIsJust impossible
@@ -683,4 +682,4 @@ assertReverseSchema (Convert a b m) s prf with (convertIsValid a b m) proof prf1
             rewrite convertIsValidAfterReverse KText KText m prf1
             in rewrite convertDefaultAfterReverse (Text d) (Text d') m prf2 in Refl
     assertReverseSchema (Convert KText _ _) (SArray _ _) prf | True = absurd $ prf
-    assertReverseSchema (Convert KText _ _) (SObject _) prf | True = absurd $ prf-}
+    assertReverseSchema (Convert KText _ _) (SObject _) prf | True = absurd $ prf

@@ -125,12 +125,16 @@ beq_natP n m with (n == m) proof h
 
 -- String utils
 public export
-beq_str : (s : String) -> s == s = True
+beq_str : (s : List Char) -> s == s = True
 beq_str s = believe_me s
 
 public export
-eq_str : (s1, s2 : String) -> s1 == s2 = True -> s1 = s2
+eq_str : (s1, s2 : List Char) -> s1 == s2 = True -> s1 = s2
 eq_str s1 s2 prf = believe_me prf
+
+public export
+neq_str : (s1, s2 : List Char) -> s1 == s2 = False -> Not (s1 = s2)
+neq_str s1 s2 prf = believe_me prf
 
 
 -- Key
@@ -273,15 +277,15 @@ mutual
         remove' k m | (ReflectF f prf) = m
 
     remove_lemma : (m : Map a) -> (k1, k2 : Key) -> NotInMap k1 m -> NotInMap k1 (remove' k2 m)
-    remove_lemma Empty k1 k2 IsEmpty = IsEmpty
+    {-remove_lemma Empty k1 k2 IsEmpty = IsEmpty
     remove_lemma (Entry k _ m y) k1 k2 (HasEntry f x) with (containsP k m)
         remove_lemma (Entry k _ m y) k1 k2 (HasEntry f x) | (ReflectT z prf) =
             let ind = remove_lemma m k1 k2 x in ?s_update_f_lemma_rhs_4
-        remove_lemma (Entry k _ m y) k1 k2 (HasEntry f x) | (ReflectF g prf) = ?s_update_f_lemma_rhs_5
+        remove_lemma (Entry k _ m y) k1 k2 (HasEntry f x) | (ReflectF g prf) = ?s_update_f_lemma_rhs_5-}
 
 public export
 update : Key -> Maybe a -> Map a -> Map a
-update k Nothing m = ?h -- remove' k m
+update k Nothing m = remove' k m
 update k (Just v) m = insert' k v m
 
 public export
@@ -291,6 +295,10 @@ insert k v m = update k (Just v) m
 public export
 remove : Key -> Map a -> Map a
 remove k m = update k Nothing m
+
+public export
+delete : Key -> Map a -> Map a
+delete = remove
 
 public export
 update_eq : (m : Map a) -> (k : Key) -> (v : Maybe a) -> get k (update k v m) = v
@@ -306,6 +314,9 @@ s_update_eq (Entry x xs _) k True with (beq_keyP k x)
             rewrite prf in rewrite prf1 in Refl
         s_update_eq (Entry x xs _) k True | (ReflectF f prf) | (ReflectF g prf1) =
             rewrite beq_key k in Refl-}
+
+public export
+update_neq : (m : Map a) -> (k1, k2 : Key) -> (v : Maybe a) -> Not (k1 = k2) -> (get k2 $ update k1 v m) = get k2 m
 
 public export
 update_shadow : (m : Map a) -> (k : Key) -> (v1, v2 : Maybe a) -> (update k v2 $ update k v1 m) = update k v2 m
@@ -324,7 +335,7 @@ s_update_shadow (Entry key s x) k False True = ?h_4
 s_update_shadow (Entry key s x) k True b2 = ?h_2-}
 
 public export
-update_same : (m : Map a) -> (k : Key) -> (v : Maybe a) -> update k (get k s) m = m
+update_same : (m : Map a) -> (k : Key) -> (v : Maybe a) -> (get k m = v) -> update k v m = m
 
 public export
 update_permute : (m : Map a) -> (k1, k2 : Key) -> (v1, v2 : Maybe a) -> Not (k1 = k2) ->

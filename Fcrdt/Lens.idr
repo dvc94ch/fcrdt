@@ -226,8 +226,8 @@ data Lens =
     | RenameProperty Key Key
     | HoistProperty Key Key
     | PlungeProperty Key Key
-    | WrapProperty
-    | HeadProperty
+    | Wrap
+    | Head
     | LensIn Key Lens
     | LensMap Lens
     | Convert PrimitiveKind PrimitiveKind (List (PrimitiveValue, PrimitiveValue))
@@ -242,8 +242,8 @@ Eq Lens where
     RenameProperty a1 b1 == RenameProperty a2 b2 = a1 == a2 && b1 == b2
     HoistProperty h1 p1 == HoistProperty h2 p2 = h1 == h2 && p1 == p2
     PlungeProperty h1 p1 == PlungeProperty h2 p2 = h1 == h2 && p1 == p2
-    WrapProperty == WrapProperty = True
-    HeadProperty == HeadProperty = True
+    Wrap == Wrap = True
+    Head == Head = True
     LensIn p1 l1 == LensIn p2 l2 = p1 == p2 && l1 == l2
     LensMap l1 == LensMap l2 = l1 == l2
     Convert k11 k21 f1 == Convert k12 k22 f2 = k11 == k12 && k22 == k22 && f1 == f2
@@ -284,8 +284,8 @@ reverse_lens (RemoveProperty x) = AddProperty x
 reverse_lens (RenameProperty x y) = RenameProperty y x
 reverse_lens (HoistProperty x y) = PlungeProperty x y
 reverse_lens (PlungeProperty x y) = HoistProperty x y
-reverse_lens WrapProperty = HeadProperty
-reverse_lens HeadProperty = WrapProperty
+reverse_lens Wrap = Head
+reverse_lens Head = Wrap
 reverse_lens (LensIn x y) = LensIn x (reverse_lens y)
 reverse_lens (LensMap x) = LensMap (reverse_lens x)
 reverse_lens (Convert a b m) = Convert b a (flip_map m)
@@ -366,9 +366,9 @@ transform_schema (PlungeProperty h t) (SObject m) =
                 _ => Nothing
         _ => Nothing
 transform_schema (PlungeProperty _ _) _ = Nothing
-transform_schema WrapProperty schema = Just (SArray False schema)
-transform_schema HeadProperty (SArray False schema) = Just schema
-transform_schema HeadProperty _ = Nothing
+transform_schema Wrap schema = Just (SArray False schema)
+transform_schema Head (SArray False schema) = Just schema
+transform_schema Head _ = Nothing
 transform_schema (LensIn key lens) (SObject smap) =
     case get key smap of
         Just schema =>
@@ -431,9 +431,9 @@ transform_value (PlungeProperty h t) (Object m) =
         (Just (Object hm), Just v) => Object (insert h (Object (insert t v hm)) $ remove t m)
         _ => Object m
 transform_value (PlungeProperty _ _) v = v
-transform_value WrapProperty v = Array [v]
-transform_value HeadProperty (Array (x :: _)) = x
-transform_value HeadProperty v = v
+transform_value Wrap v = Array [v]
+transform_value Head (Array (x :: _)) = x
+transform_value Head v = v
 transform_value (LensIn k l) (Object vm) =
     case get k vm of
         Just v => Object (insert k (transform_value l v) vm)
@@ -448,22 +448,162 @@ transform_value (Convert _ _ m) (Primitive v) =
 transform_value (Convert _ _ _) v = v
 
 
-make_lens_reversible : (k : Kind) ->
+make_reversible : (k : Kind) ->
     (s : Schema) -> (s' : Schema) ->
-    transform_schema (Make k) s = Just s' -> transform_schema (reverse_lens l) s' = Just s
+    transform_schema (Make k) s = Just s' -> transform_schema (reverse_lens (Make k)) s' = Just s
+make_reversible k s s' prf = ?make_reversible_rhs
 
-make_lens_preserves_validity : (k : Kind) ->
+make_preserves_validity : (k : Kind) ->
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema (Make k) = Just s' -> transform_value (Make k) v = v' ->
+    transform_schema (Make k) s = Just s' -> transform_value (Make k) v = v' ->
     validate s v = True -> validate s' v' = True
+make_preserves_validity k s s' v v' prf prf1 prf2 = ?make_preserves_validity_rhs
+
+destroy_reversible : (k : Kind) ->
+    (s : Schema) -> (s' : Schema) ->
+    transform_schema (Destroy k) s = Just s' -> transform_schema (reverse_lens (Destroy k)) s' = Just s
+destroy_reversible k s s' prf = ?destroy_reversible_rhs
+
+destroy_preserves_validity : (k : Kind) ->
+    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
+    transform_schema (Destroy k) s = Just s' -> transform_value (Destroy k) v = v' ->
+    validate s v = True -> validate s' v' = True
+destroy_preserves_validity k s s' v v' prf prf1 prf2 = ?destroy_lens_preserves_validity_rhs
+
+
+add_property_reversible : (k : Key) ->
+    (s : Schema) -> (s' : Schema) ->
+    transform_schema (AddProperty k) s = Just s' -> transform_schema (reverse_lens (AddProperty k)) s' = Just s
+add_property_reversible k s s' prf = ?add_property_reversible_rhs
+
+add_property_preserves_validity : (k : Key) ->
+    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
+    transform_schema (AddProperty k) s = Just s' -> transform_value (AddProperty k) v = v' ->
+    validate s v = True -> validate s' v' = True
+add_property_preserves_validity k s s' v v' prf prf1 prf2 = ?add_property_preserves_validity_rhs
+
+remove_property_reversible : (k : Key) ->
+    (s : Schema) -> (s' : Schema) ->
+    transform_schema (RemoveProperty k) s = Just s' -> transform_schema (reverse_lens (RemoveProperty k)) s' = Just s
+remove_property_reversible k s s' prf = ?remove_property_reversible_rhs
+
+remove_property_preserves_validity : (k : Key) ->
+    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
+    transform_schema (RemoveProperty k) s = Just s' -> transform_value (RemoveProperty k) v = v' ->
+    validate s v = True -> validate s' v' = True
+remove_property_preserves_validity k s s' v v' prf prf1 prf2 = ?remove_property_preserves_validity_rhs
+
+
+rename_property_reversible : (k, k' : Key) ->
+    (s : Schema) -> (s' : Schema) ->
+    transform_schema (RenameProperty k k') s = Just s' -> transform_schema (reverse_lens (RenameProperty k k')) s' = Just s
+rename_property_reversible k k' s s' prf = ?rename_property_reversible_rhs
+
+rename_property_preserves_validity : (k, k' : Key) ->
+    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
+    transform_schema (RenameProperty k k') s = Just s' -> transform_value (RenameProperty k k') v = v' ->
+    validate s v = True -> validate s' v' = True
+rename_property_preserves_validity k k' s s' v v' prf prf1 prf2 = ?rename_property_preserves_validity_rhs
+
+
+hoist_property_reversible : (h, t : Key) ->
+    (s : Schema) -> (s' : Schema) ->
+    transform_schema (HoistProperty h t) s = Just s' -> transform_schema (reverse_lens (HoistProperty h t)) s' = Just s
+hoist_property_reversible h t s s' prf = ?hoist_property_reversible_rhs
+
+hoist_property_preserves_validity : (h, t : Key) ->
+    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
+    transform_schema (HoistProperty h t) s = Just s' -> transform_value (HoistProperty h t) v = v' ->
+    validate s v = True -> validate s' v' = True
+hoist_property_preserves_validity h t s s' v v' prf prf1 prf2 = ?hoist_property_preserves_validity_rhs
+
+plunge_property_reversible : (h, t : Key) ->
+    (s : Schema) -> (s' : Schema) ->
+    transform_schema (PlungeProperty h t) s = Just s' -> transform_schema (reverse_lens (PlungeProperty h t)) s' = Just s
+plunge_property_reversible h t s s' prf = ?plunge_property_reversible_rhs
+
+plunge_property_preserves_validity : (h, t : Key) ->
+    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
+    transform_schema (PlungeProperty h t) s = Just s' -> transform_value (PlungeProperty h t) v = v' ->
+    validate s v = True -> validate s' v' = True
+plunge_property_preserves_validity h t s s' v v' prf prf1 prf2 = ?plunge_property_preserves_validity_rhs
+
+
+wrap_reversible :
+    (s : Schema) -> (s' : Schema) ->
+    transform_schema Wrap s = Just s' -> transform_schema (reverse_lens Wrap) s' = Just s
+wrap_reversible s s' prf = ?wrap_reversible_rhs
+
+wrap_preserves_validity :
+    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
+    transform_schema Wrap s = Just s' -> transform_value Wrap v = v' ->
+    validate s v = True -> validate s' v' = True
+wrap_preserves_validity s s' v v' prf prf1 prf2 = ?wrap_preserves_validity_rhs
+
+head_reversible :
+    (s : Schema) -> (s' : Schema) ->
+    transform_schema Head s = Just s' -> transform_schema (reverse_lens Head) s' = Just s
+head_reversible s s' prf = ?head_reversible_rhs
+
+head_preserves_validity :
+    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
+    transform_schema Head s = Just s' -> transform_value Head v = v' ->
+    validate s v = True -> validate s' v' = True
+head_preserves_validity s s' v v' prf prf1 prf2 = ?head_preserves_validity_rhs
+
+
+convert_reversible : (k, k' : PrimitiveKind) -> (m : List (PrimitiveValue, PrimitiveValue)) ->
+    (s : Schema) -> (s' : Schema) ->
+    transform_schema (Convert k k' m) s = Just s' -> transform_schema (reverse_lens (Convert k k' m)) s' = Just s
+convert_reversible k k' m s s' prf = ?convert_reversible_rhs
+
+convert_preserves_validity : (k, k' : PrimitiveKind) -> (m : List (PrimitiveValue, PrimitiveValue)) ->
+    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
+    transform_schema (Convert k k' m) s = Just s' -> transform_value (Convert k k' m) v = v' ->
+    validate s v = True -> validate s' v' = True
+convert_preserves_validity k k' m s s' v v' prf prf1 prf2 = ?convert_preserves_validity_rhs
+
 
 ||| Forwards and backwards compatibility requires schema transformations to be reversible
 lens_reversible : (l : Lens) -> (s : Schema) -> (s' : Schema) ->
     transform_schema l s = Just s' -> transform_schema (reverse_lens l) s' = Just s
+lens_reversible (Make k) s s' prf = make_reversible k s s' prf
+lens_reversible (Destroy k) s s' prf = destroy_reversible k s s' prf
+lens_reversible (AddProperty k) s s' prf = add_property_reversible k s s' prf
+lens_reversible (RemoveProperty k) s s' prf = remove_property_reversible k s s' prf
+lens_reversible (RenameProperty k k') s s' prf = rename_property_reversible k k' s s' prf
+lens_reversible (HoistProperty h t) s s' prf = hoist_property_reversible h t s s' prf
+lens_reversible (PlungeProperty h t) s s' prf = plunge_property_reversible h t s s' prf
+lens_reversible Wrap s s' prf = wrap_reversible s s' prf
+lens_reversible Head s s' prf = head_reversible s s' prf
+lens_reversible (LensIn k l) s s' prf = ?lens_reversible_rhs_10
+lens_reversible (LensMap l) s s' prf = ?lens_reversible_rhs_11
+lens_reversible (Convert k k' m) s s' prf = convert_reversible k k' m s s' prf
 
 ||| Transforming a valid value must result in a valid value
 lens_preserves_validity : (l : Lens) ->
-    (s : Schema) -> (s' : Schema) ->
-    (v : Value) -> (v' : Value) ->
+    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
     transform_schema l s = Just s' -> transform_value l v = v' ->
     validate s v = True -> validate s' v' = True
+lens_preserves_validity (Make k) s s' v v' prf prf1 prf2 =
+    make_preserves_validity k s s' v v' prf prf1 prf2
+lens_preserves_validity (Destroy k) s s' v v' prf prf1 prf2 =
+    destroy_preserves_validity k s s' v v' prf prf1 prf2
+lens_preserves_validity (AddProperty k) s s' v v' prf prf1 prf2 =
+    add_property_preserves_validity k s s' v v' prf prf1 prf2
+lens_preserves_validity (RemoveProperty k) s s' v v' prf prf1 prf2 =
+    remove_property_preserves_validity k s s' v v' prf prf1 prf2
+lens_preserves_validity (RenameProperty k k') s s' v v' prf prf1 prf2 =
+    rename_property_preserves_validity k k' s s' v v' prf prf1 prf2
+lens_preserves_validity (HoistProperty h t) s s' v v' prf prf1 prf2 =
+    hoist_property_preserves_validity h t s s' v v' prf prf1 prf2
+lens_preserves_validity (PlungeProperty h t) s s' v v' prf prf1 prf2 =
+    plunge_property_preserves_validity h t s s' v v' prf prf1 prf2
+lens_preserves_validity Wrap s s' v v' prf prf1 prf2 =
+    wrap_preserves_validity s s' v v' prf prf1 prf2
+lens_preserves_validity Head s s' v v' prf prf1 prf2 =
+    head_preserves_validity s s' v v' prf prf1 prf2
+lens_preserves_validity (LensIn k l) s s' v v' prf prf1 prf2 = ?lens_preserves_validity_rhs_10
+lens_preserves_validity (LensMap l) s s' v v' prf prf1 prf2 = ?lens_preserves_validity_rhs_11
+lens_preserves_validity (Convert k k' m) s s' v v' prf prf1 prf2 =
+    convert_preserves_validity k k' m s s' v v' prf prf1 prf2

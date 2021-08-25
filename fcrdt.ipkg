@@ -6,6 +6,8 @@ depends = base, contrib
 
 modules =
     Fcrdt.Lens,
+    Fcrdt.Lens.Reversible,
+    Fcrdt.Lens.Valid,
     Fcrdt.Main,
     Fcrdt.Map
 

@@ -155,6 +155,12 @@ bne_key (MkKey k) (MkKey j) prf prf1 =
     neq_nat k j prf (cong key_to_nat prf1)
 
 public export
+ne_key : (k1, k2 : Key) -> Not (k1 = k2) -> k1 == k2 = False
+ne_key (MkKey k) (MkKey j) with (beq_natP k j)
+    ne_key (MkKey k) (MkKey j) | (ReflectT x prf) = \a => void $ a $ cong MkKey x
+    ne_key (MkKey k) (MkKey j) | (ReflectF f prf) = \a => prf
+
+public export
 beq_keyP : (n, m : Key) -> Reflect (n = m) (n == m)
 beq_keyP (MkKey k) (MkKey j) with (beq_natP k j)
     beq_keyP (MkKey k) (MkKey j) | (ReflectT x prf) = ReflectT (cong MkKey x) prf
@@ -168,6 +174,7 @@ mutual
         Empty : Map a
         Entry : (k : Key) -> (v : a) -> (m : Map a) -> NotInMap k m -> Map a
 
+    public export
     data NotInMap : (k : Key) -> (m : Map a) -> Type where
         IsEmpty : NotInMap k Empty
         HasEntry : Not (k = k2) -> NotInMap k m -> NotInMap k (Entry k2 v m p)
@@ -175,6 +182,15 @@ mutual
 %name Map m, m1, m2
 %name NotInMap p, p1, p2
 
+public export
+Uninhabited (Empty = Entry k v m p) where
+    uninhabited Refl impossible
+
+public export
+Uninhabited (Entry k v m p = Empty) where
+    uninhabited Refl impossible
+
+public export
 Uninhabited (NotInMap k (Entry k v s p)) where
     uninhabited (HasEntry f y) = f Refl
 
@@ -190,6 +206,7 @@ test_two_elem = Entry (MkKey 1) 43 test_one_elem (HasEntry uninhabited IsEmpty)
 test_three_elem : Map Nat
 test_three_elem = Entry (MkKey 2) 44 test_two_elem (HasEntry uninhabited (HasEntry uninhabited IsEmpty))
 
+public export
 contains : (k : Key) -> (m : Map a) -> Bool
 contains _ Empty = False
 contains k' (Entry k _ m _) = if k == k' then True else contains k' m
@@ -207,10 +224,12 @@ public export
 Eq a => Eq (Map a) where
     x == y = forall_keys_eq x y && forall_keys_eq y x
 
+public export
 InMap : (k : Key) -> (m : Map a) -> Type
 InMap k' Empty = Void
 InMap k' (Entry k _ m _) = Either (k' = k) (InMap k' m)
 
+public export
 containsP : (k : Key) -> (m : Map a) -> Reflect (InMap k m) (contains k m)
 containsP k' Empty = ReflectF id Refl
 containsP k' (Entry k _ m p) with (beq_keyP k k')
@@ -225,6 +244,7 @@ containsP k' (Entry k _ m p) with (beq_keyP k k')
                     Left a => f (sym a)
                     Right b => g b) Refl
 
+public export
 neg_not_in : (m : Map a) -> (k : Key) -> Not (NotInMap k m) -> InMap k m
 neg_not_in Empty _ f = f IsEmpty
 neg_not_in (Entry k _ m p) k' f with (beq_keyP k' k)
@@ -235,6 +255,7 @@ neg_not_in (Entry k _ m p) k' f with (beq_keyP k' k)
             let h = \x => f (HasEntry g x)
                 ind = neg_not_in m k' h in Right ind
 
+public export
 neg_in : (m : Map a) -> (k : Key) -> Not (InMap k m) -> NotInMap k m
 neg_in Empty _ _ = IsEmpty
 neg_in (Entry k _ m p) k' f with (containsP k' m)

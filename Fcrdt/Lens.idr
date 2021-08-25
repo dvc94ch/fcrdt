@@ -161,6 +161,17 @@ Uninhabited (Object _ = Array _) where
 Uninhabited (a = b) => Uninhabited (Object a = Object b) where
     uninhabited Refl @{ab} = uninhabited @{ab} Refl
 
+prim : Value -> Maybe PrimitiveValue
+prim (Primitive v) = Just v
+prim _ = Nothing
+
+array : Value -> Maybe (List Value)
+array (Array xs) = Just xs
+array _ = Nothing
+
+object : Value -> Maybe (Map Value)
+object (Object m) = Just m
+object _ = Nothing
 
 data Kind =
       KNull
@@ -190,33 +201,161 @@ data Schema =
     | SArray Bool Schema
     | SObject (Map Schema)
 
-validate : Schema -> Value -> Bool
-validate SNull Null = True
-validate SNull _ = False
-validate SBoolean (Primitive (Boolean _)) = True
-validate SBoolean _ = False
-validate SNumber (Primitive (Number _)) = True
-validate SNumber _ = False
-validate SText (Primitive (Text _)) = True
-validate SText _ = False
-validate (SArray allowEmpty schema) (Array []) = allowEmpty
-validate (SArray _ schema) (Array (x :: xs)) =
-    assert_total (validate schema x) && assert_total (validate (SArray True schema) (Array xs))
-validate (SArray _ _) _ = False
-validate (SObject smap) (Object vmap) =
-    all_properties_exist smap vmap && validate_properties vmap smap where
-        all_properties_exist : Map Schema -> Map Value -> Bool
-        all_properties_exist Empty _ = True
-        all_properties_exist (Entry k v m _) vmap with (get k vmap)
-            all_properties_exist (Entry k _ m _) vmap | Nothing = False
-            all_properties_exist (Entry k _ m _) vmap | Just _ = all_properties_exist m vmap
-        validate_properties : Map Value -> Map Schema -> Bool
-        validate_properties Empty _ = True
-        validate_properties (Entry k v m _) smap with (get k smap)
-            validate_properties (Entry _ _ _ _) _ | Nothing = False
-            validate_properties (Entry k v m _) smap | Just schema =
-                assert_total (validate schema v) && validate_properties m smap
-validate (SObject _) _ = False
+%name Schema s, s1, s2
+
+Uninhabited (SNull = SBoolean) where
+    uninhabited Refl impossible
+
+Uninhabited (SNull = SNumber) where
+    uninhabited Refl impossible
+
+Uninhabited (SNull = SText) where
+    uninhabited Refl impossible
+
+Uninhabited (SNull = SArray _ _) where
+    uninhabited Refl impossible
+
+Uninhabited (SNull = SObject _) where
+    uninhabited Refl impossible
+
+Uninhabited (SBoolean = SNull) where
+    uninhabited Refl impossible
+
+Uninhabited (SBoolean = SNumber) where
+    uninhabited Refl impossible
+
+Uninhabited (SBoolean = SText) where
+    uninhabited Refl impossible
+
+Uninhabited (SBoolean = SArray _ _) where
+    uninhabited Refl impossible
+
+Uninhabited (SBoolean = SObject _) where
+    uninhabited Refl impossible
+
+Uninhabited (SNumber = SNull) where
+    uninhabited Refl impossible
+
+Uninhabited (SNumber = SBoolean) where
+    uninhabited Refl impossible
+
+Uninhabited (SNumber = SText) where
+    uninhabited Refl impossible
+
+Uninhabited (SNumber = SArray _ _) where
+    uninhabited Refl impossible
+
+Uninhabited (SNumber = SObject _) where
+    uninhabited Refl impossible
+
+Uninhabited (SText = SNull) where
+    uninhabited Refl impossible
+
+Uninhabited (SText = SBoolean) where
+    uninhabited Refl impossible
+
+Uninhabited (SText = SNumber) where
+    uninhabited Refl impossible
+
+Uninhabited (SText = SArray _ _) where
+    uninhabited Refl impossible
+
+Uninhabited (SText = SObject _) where
+    uninhabited Refl impossible
+
+Uninhabited (SArray _ _ = SNull) where
+    uninhabited Refl impossible
+
+Uninhabited (SArray _ _ = SBoolean) where
+    uninhabited Refl impossible
+
+Uninhabited (SArray _ _ = SNumber) where
+    uninhabited Refl impossible
+
+Uninhabited (SArray _ _ = SText) where
+    uninhabited Refl impossible
+
+Uninhabited (a = b) => Uninhabited (SArray a _ = SArray b _) where
+    uninhabited Refl @{ab} = uninhabited @{ab} Refl
+
+Uninhabited (a = b) => Uninhabited (SArray _ a = SArray _ b) where
+    uninhabited Refl @{ab} = uninhabited @{ab} Refl
+
+Uninhabited (SArray _ _ = SObject _) where
+    uninhabited Refl impossible
+
+Uninhabited (SObject _ = SNull) where
+    uninhabited Refl impossible
+
+Uninhabited (SObject _ = SBoolean) where
+    uninhabited Refl impossible
+
+Uninhabited (SObject _ = SNumber) where
+    uninhabited Refl impossible
+
+Uninhabited (SObject _ = SText) where
+    uninhabited Refl impossible
+
+Uninhabited (SObject _ = SArray _ _) where
+    uninhabited Refl impossible
+
+Uninhabited (a = b) => Uninhabited (SObject a = SObject b) where
+    uninhabited Refl @{ab} = uninhabited @{ab} Refl
+
+
+allow_empty : Schema -> Maybe Bool
+allow_empty (SArray e _) = Just e
+allow_empty _ = Nothing
+
+all_properties_exist : Map Schema -> Map Value -> Bool
+all_properties_exist Empty _ = True
+all_properties_exist (Entry k v m _) vmap with (contains k vmap)
+    all_properties_exist (Entry k _ m _) vmap | False = False
+    all_properties_exist (Entry k _ m _) vmap | True = all_properties_exist m vmap
+
+all_properties_exist_after_insert : (sm : Map Schema) -> (vm : Map Value) ->
+    (k : Key) -> (s : Schema) -> (v : Value) ->
+    all_properties_exist sm vm = True -> all_properties_exist (insert k s sm) (insert k v vm) = True
+all_properties_exist_after_insert sm vm k s v prf with (containsP k vm)
+    all_properties_exist_after_insert Empty Empty k s v prf | (ReflectT x prf1) = absurd $ prf1
+    all_properties_exist_after_insert Empty (Entry k1 y m p) k s v prf | (ReflectT x prf1) = ?h3_6
+    all_properties_exist_after_insert (Entry k1 y m p) vm k s v prf | (ReflectT x prf1) = ?h3_4
+    all_properties_exist_after_insert sm vm k s v prf | (ReflectF f prf1) = ?h3_2
+
+all_properties_exist_after_remove : (sm : Map Schema) -> (vm : Map Value) -> (k : Key) ->
+    all_properties_exist sm vm = True -> all_properties_exist (remove k sm) (remove k vm) = True
+
+mutual
+    validate_properties : Map Value -> Map Schema -> Bool
+    validate_properties Empty _ = True
+    validate_properties (Entry k v m _) smap with (get k smap)
+        validate_properties (Entry _ _ _ _) _ | Nothing = False
+        validate_properties (Entry k v m _) smap | Just schema =
+             assert_total (validate schema v) && validate_properties m smap
+
+    validate : Schema -> Value -> Bool
+    validate SNull Null = True
+    validate SNull _ = False
+    validate SBoolean (Primitive (Boolean _)) = True
+    validate SBoolean _ = False
+    validate SNumber (Primitive (Number _)) = True
+    validate SNumber _ = False
+    validate SText (Primitive (Text _)) = True
+    validate SText _ = False
+    validate (SArray allowEmpty schema) (Array []) = allowEmpty
+    validate (SArray _ schema) (Array (x :: xs)) =
+        assert_total (validate schema x) && assert_total (validate (SArray True schema) (Array xs))
+    validate (SArray _ _) _ = False
+    validate (SObject smap) (Object vmap) =
+        all_properties_exist smap vmap && validate_properties vmap smap
+    validate (SObject _) _ = False
+
+validate_properties_after_insert : (vm : Map Value) -> (sm : Map Schema) ->
+    (k : Key) -> (v : Value) -> (s : Schema) -> validate s v = True ->
+    validate_properties vm sm = True -> validate_properties (insert k v vm) (insert k s sm) = True
+
+validate_properties_after_remove : (vm : Map Value) -> (sm : Map Schema) -> (k : Key) ->
+    validate_properties vm sm = True -> validate_properties (remove k vm) (remove k sm) = True
 
 data Lens =
       Make Kind
@@ -446,164 +585,3 @@ transform_value (Convert _ _ m) (Primitive v) =
         Just v => (Primitive v)
         Nothing => (Primitive v)
 transform_value (Convert _ _ _) v = v
-
-
-make_reversible : (k : Kind) ->
-    (s : Schema) -> (s' : Schema) ->
-    transform_schema (Make k) s = Just s' -> transform_schema (reverse_lens (Make k)) s' = Just s
-make_reversible k s s' prf = ?make_reversible_rhs
-
-make_preserves_validity : (k : Kind) ->
-    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema (Make k) s = Just s' -> transform_value (Make k) v = v' ->
-    validate s v = True -> validate s' v' = True
-make_preserves_validity k s s' v v' prf prf1 prf2 = ?make_preserves_validity_rhs
-
-destroy_reversible : (k : Kind) ->
-    (s : Schema) -> (s' : Schema) ->
-    transform_schema (Destroy k) s = Just s' -> transform_schema (reverse_lens (Destroy k)) s' = Just s
-destroy_reversible k s s' prf = ?destroy_reversible_rhs
-
-destroy_preserves_validity : (k : Kind) ->
-    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema (Destroy k) s = Just s' -> transform_value (Destroy k) v = v' ->
-    validate s v = True -> validate s' v' = True
-destroy_preserves_validity k s s' v v' prf prf1 prf2 = ?destroy_lens_preserves_validity_rhs
-
-
-add_property_reversible : (k : Key) ->
-    (s : Schema) -> (s' : Schema) ->
-    transform_schema (AddProperty k) s = Just s' -> transform_schema (reverse_lens (AddProperty k)) s' = Just s
-add_property_reversible k s s' prf = ?add_property_reversible_rhs
-
-add_property_preserves_validity : (k : Key) ->
-    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema (AddProperty k) s = Just s' -> transform_value (AddProperty k) v = v' ->
-    validate s v = True -> validate s' v' = True
-add_property_preserves_validity k s s' v v' prf prf1 prf2 = ?add_property_preserves_validity_rhs
-
-remove_property_reversible : (k : Key) ->
-    (s : Schema) -> (s' : Schema) ->
-    transform_schema (RemoveProperty k) s = Just s' -> transform_schema (reverse_lens (RemoveProperty k)) s' = Just s
-remove_property_reversible k s s' prf = ?remove_property_reversible_rhs
-
-remove_property_preserves_validity : (k : Key) ->
-    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema (RemoveProperty k) s = Just s' -> transform_value (RemoveProperty k) v = v' ->
-    validate s v = True -> validate s' v' = True
-remove_property_preserves_validity k s s' v v' prf prf1 prf2 = ?remove_property_preserves_validity_rhs
-
-
-rename_property_reversible : (k, k' : Key) ->
-    (s : Schema) -> (s' : Schema) ->
-    transform_schema (RenameProperty k k') s = Just s' -> transform_schema (reverse_lens (RenameProperty k k')) s' = Just s
-rename_property_reversible k k' s s' prf = ?rename_property_reversible_rhs
-
-rename_property_preserves_validity : (k, k' : Key) ->
-    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema (RenameProperty k k') s = Just s' -> transform_value (RenameProperty k k') v = v' ->
-    validate s v = True -> validate s' v' = True
-rename_property_preserves_validity k k' s s' v v' prf prf1 prf2 = ?rename_property_preserves_validity_rhs
-
-
-hoist_property_reversible : (h, t : Key) ->
-    (s : Schema) -> (s' : Schema) ->
-    transform_schema (HoistProperty h t) s = Just s' -> transform_schema (reverse_lens (HoistProperty h t)) s' = Just s
-hoist_property_reversible h t s s' prf = ?hoist_property_reversible_rhs
-
-hoist_property_preserves_validity : (h, t : Key) ->
-    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema (HoistProperty h t) s = Just s' -> transform_value (HoistProperty h t) v = v' ->
-    validate s v = True -> validate s' v' = True
-hoist_property_preserves_validity h t s s' v v' prf prf1 prf2 = ?hoist_property_preserves_validity_rhs
-
-plunge_property_reversible : (h, t : Key) ->
-    (s : Schema) -> (s' : Schema) ->
-    transform_schema (PlungeProperty h t) s = Just s' -> transform_schema (reverse_lens (PlungeProperty h t)) s' = Just s
-plunge_property_reversible h t s s' prf = ?plunge_property_reversible_rhs
-
-plunge_property_preserves_validity : (h, t : Key) ->
-    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema (PlungeProperty h t) s = Just s' -> transform_value (PlungeProperty h t) v = v' ->
-    validate s v = True -> validate s' v' = True
-plunge_property_preserves_validity h t s s' v v' prf prf1 prf2 = ?plunge_property_preserves_validity_rhs
-
-
-wrap_reversible :
-    (s : Schema) -> (s' : Schema) ->
-    transform_schema Wrap s = Just s' -> transform_schema (reverse_lens Wrap) s' = Just s
-wrap_reversible s s' prf = ?wrap_reversible_rhs
-
-wrap_preserves_validity :
-    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema Wrap s = Just s' -> transform_value Wrap v = v' ->
-    validate s v = True -> validate s' v' = True
-wrap_preserves_validity s s' v v' prf prf1 prf2 = ?wrap_preserves_validity_rhs
-
-head_reversible :
-    (s : Schema) -> (s' : Schema) ->
-    transform_schema Head s = Just s' -> transform_schema (reverse_lens Head) s' = Just s
-head_reversible s s' prf = ?head_reversible_rhs
-
-head_preserves_validity :
-    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema Head s = Just s' -> transform_value Head v = v' ->
-    validate s v = True -> validate s' v' = True
-head_preserves_validity s s' v v' prf prf1 prf2 = ?head_preserves_validity_rhs
-
-
-convert_reversible : (k, k' : PrimitiveKind) -> (m : List (PrimitiveValue, PrimitiveValue)) ->
-    (s : Schema) -> (s' : Schema) ->
-    transform_schema (Convert k k' m) s = Just s' -> transform_schema (reverse_lens (Convert k k' m)) s' = Just s
-convert_reversible k k' m s s' prf = ?convert_reversible_rhs
-
-convert_preserves_validity : (k, k' : PrimitiveKind) -> (m : List (PrimitiveValue, PrimitiveValue)) ->
-    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema (Convert k k' m) s = Just s' -> transform_value (Convert k k' m) v = v' ->
-    validate s v = True -> validate s' v' = True
-convert_preserves_validity k k' m s s' v v' prf prf1 prf2 = ?convert_preserves_validity_rhs
-
-
-||| Forwards and backwards compatibility requires schema transformations to be reversible
-lens_reversible : (l : Lens) -> (s : Schema) -> (s' : Schema) ->
-    transform_schema l s = Just s' -> transform_schema (reverse_lens l) s' = Just s
-lens_reversible (Make k) s s' prf = make_reversible k s s' prf
-lens_reversible (Destroy k) s s' prf = destroy_reversible k s s' prf
-lens_reversible (AddProperty k) s s' prf = add_property_reversible k s s' prf
-lens_reversible (RemoveProperty k) s s' prf = remove_property_reversible k s s' prf
-lens_reversible (RenameProperty k k') s s' prf = rename_property_reversible k k' s s' prf
-lens_reversible (HoistProperty h t) s s' prf = hoist_property_reversible h t s s' prf
-lens_reversible (PlungeProperty h t) s s' prf = plunge_property_reversible h t s s' prf
-lens_reversible Wrap s s' prf = wrap_reversible s s' prf
-lens_reversible Head s s' prf = head_reversible s s' prf
-lens_reversible (LensIn k l) s s' prf = ?lens_reversible_rhs_10
-lens_reversible (LensMap l) s s' prf = ?lens_reversible_rhs_11
-lens_reversible (Convert k k' m) s s' prf = convert_reversible k k' m s s' prf
-
-||| Transforming a valid value must result in a valid value
-lens_preserves_validity : (l : Lens) ->
-    (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
-    transform_schema l s = Just s' -> transform_value l v = v' ->
-    validate s v = True -> validate s' v' = True
-lens_preserves_validity (Make k) s s' v v' prf prf1 prf2 =
-    make_preserves_validity k s s' v v' prf prf1 prf2
-lens_preserves_validity (Destroy k) s s' v v' prf prf1 prf2 =
-    destroy_preserves_validity k s s' v v' prf prf1 prf2
-lens_preserves_validity (AddProperty k) s s' v v' prf prf1 prf2 =
-    add_property_preserves_validity k s s' v v' prf prf1 prf2
-lens_preserves_validity (RemoveProperty k) s s' v v' prf prf1 prf2 =
-    remove_property_preserves_validity k s s' v v' prf prf1 prf2
-lens_preserves_validity (RenameProperty k k') s s' v v' prf prf1 prf2 =
-    rename_property_preserves_validity k k' s s' v v' prf prf1 prf2
-lens_preserves_validity (HoistProperty h t) s s' v v' prf prf1 prf2 =
-    hoist_property_preserves_validity h t s s' v v' prf prf1 prf2
-lens_preserves_validity (PlungeProperty h t) s s' v v' prf prf1 prf2 =
-    plunge_property_preserves_validity h t s s' v v' prf prf1 prf2
-lens_preserves_validity Wrap s s' v v' prf prf1 prf2 =
-    wrap_preserves_validity s s' v v' prf prf1 prf2
-lens_preserves_validity Head s s' v v' prf prf1 prf2 =
-    head_preserves_validity s s' v v' prf prf1 prf2
-lens_preserves_validity (LensIn k l) s s' v v' prf prf1 prf2 = ?lens_preserves_validity_rhs_10
-lens_preserves_validity (LensMap l) s s' v v' prf prf1 prf2 = ?lens_preserves_validity_rhs_11
-lens_preserves_validity (Convert k k' m) s s' v v' prf prf1 prf2 =
-    convert_preserves_validity k k' m s s' v v' prf prf1 prf2

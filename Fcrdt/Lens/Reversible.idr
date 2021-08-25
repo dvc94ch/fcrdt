@@ -2,6 +2,8 @@ module Fcrdt.Lens.Reversible
 
 import Data.Maybe
 import Fcrdt.Lens
+import Fcrdt.Lens.Uninhabited
+import Fcrdt.Lens.Util
 import Fcrdt.Map
 
 %default total

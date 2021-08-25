@@ -3,6 +3,8 @@ module Fcrdt.Lens.Valid
 import Data.List
 import Data.Maybe
 import Fcrdt.Lens
+import Fcrdt.Lens.Uninhabited
+import Fcrdt.Lens.Util
 import Fcrdt.Map
 
 %default total

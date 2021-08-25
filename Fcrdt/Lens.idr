@@ -19,33 +19,6 @@ Eq PrimitiveValue where
     Text t1 == Text t2 = t1 == t2
     _ == _ = False
 
-Uninhabited (a = b) => Uninhabited (Boolean a = Boolean b) where
-    uninhabited Refl @{ab} = uninhabited @{ab} Refl
-
-Uninhabited (Boolean a = Number b) where
-    uninhabited Refl impossible
-
-Uninhabited (Boolean a = Text b) where
-    uninhabited Refl impossible
-
-Uninhabited (a = b) => Uninhabited (Number a = Number b) where
-    uninhabited Refl @{ab} = uninhabited @{ab} Refl
-
-Uninhabited (Number a = Boolean b) where
-    uninhabited Refl impossible
-
-Uninhabited (Number a = Text b) where
-    uninhabited Refl impossible
-
-Uninhabited (a = b) => Uninhabited (Text a = Text b) where
-    uninhabited Refl @{ab} = uninhabited @{ab} Refl
-
-Uninhabited (Text a = Boolean b) where
-    uninhabited Refl impossible
-
-Uninhabited (Text a = Number b) where
-    uninhabited Refl impossible
-
 boolean : (v : PrimitiveValue) -> Maybe Bool
 boolean (Boolean b) = Just b
 boolean _ = Nothing
@@ -58,35 +31,6 @@ text : (v : PrimitiveValue) -> Maybe (List Char)
 text (Text t) = Just t
 text _ = Nothing
 
-beq_prim : (v : PrimitiveValue) ->  v == v = True
-beq_prim (Boolean b) = beq_bool b
-beq_prim (Number n) = beq_nat n
-beq_prim (Text t) = beq_str t
-
-beq_prim2 : (v1, v2 : PrimitiveValue) -> (v1 == v2 = True) -> v1 = v2
-beq_prim2 (Boolean x) (Boolean y) prf = rewrite eq_bool x y prf in Refl
-beq_prim2 (Boolean _) (Number _) Refl impossible
-beq_prim2 (Boolean _) (Text _) Refl impossible
-beq_prim2 (Number _) (Boolean _) Refl impossible
-beq_prim2 (Number k) (Number j) prf = rewrite eq_nat k j prf in Refl
-beq_prim2 (Number _) (Text _) Refl impossible
-beq_prim2 (Text _) (Boolean _) Refl impossible
-beq_prim2 (Text _) (Number _) Refl impossible
-beq_prim2 (Text xs) (Text ys) prf = rewrite eq_str xs ys prf in Refl
-
-neq_prim : (v1, v2 : PrimitiveValue) -> (v1 == v2 = False) -> Not (v1 = v2)
-neq_prim (Boolean x) (Boolean y) prf =
-    neq_bool x y prf . justInjective . cong boolean
-neq_prim (Boolean x) (Number k) prf = uninhabited
-neq_prim (Boolean x) (Text xs) prf = uninhabited
-neq_prim (Number k) (Boolean x) prf = uninhabited
-neq_prim (Number k) (Number j) prf =
-    neq_nat k j prf . justInjective . cong number
-neq_prim (Number k) (Text xs) prf = uninhabited
-neq_prim (Text xs) (Boolean x) prf = uninhabited
-neq_prim (Text xs) (Number k) prf = uninhabited
-neq_prim (Text xs) (Text ys) prf =
-    neq_str xs ys prf . justInjective . cong text
 
 data PrimitiveKind =
       KBoolean
@@ -100,6 +44,12 @@ Eq PrimitiveKind where
     KNumber == KNumber = True
     KText == KText = True
     _ == _ = False
+
+prim_kind_of : PrimitiveValue -> PrimitiveKind
+prim_kind_of (Boolean x) = KBoolean
+prim_kind_of (Number x) = KNumber
+prim_kind_of (Text x) = KText
+
 
 data Value =
       Null
@@ -116,51 +66,6 @@ Eq Value where
     Object ps1 == Object ps2 = assert_total (ps1 == ps2)
     _ == _ = False
 
-Uninhabited (Null = Primitive _) where
-    uninhabited Refl impossible
-
-Uninhabited (Null = Array _) where
-    uninhabited Refl impossible
-
-Uninhabited (Null = Object _) where
-    uninhabited Refl impossible
-
-Uninhabited (Primitive _ = Null) where
-    uninhabited Refl impossible
-
-Uninhabited (a = b) => Uninhabited (Primitive a = Primitive b) where
-    uninhabited Refl @{ab} = uninhabited @{ab} Refl
-
-Uninhabited (Primitive _ = Array _) where
-    uninhabited Refl impossible
-
-Uninhabited (Primitive _ = Object _) where
-    uninhabited Refl impossible
-
-Uninhabited (Array _ = Null) where
-    uninhabited Refl impossible
-
-Uninhabited (Array _ = Primitive _) where
-    uninhabited Refl impossible
-
-Uninhabited (a = b) => Uninhabited (Array a = Array b) where
-    uninhabited Refl @{ab} = uninhabited @{ab} Refl
-
-Uninhabited (Array _ = Object _) where
-    uninhabited Refl impossible
-
-Uninhabited (Object _ = Null) where
-    uninhabited Refl impossible
-
-Uninhabited (Object _ = Primitive _) where
-    uninhabited Refl impossible
-
-Uninhabited (Object _ = Array _) where
-    uninhabited Refl impossible
-
-Uninhabited (a = b) => Uninhabited (Object a = Object b) where
-    uninhabited Refl @{ab} = uninhabited @{ab} Refl
-
 prim : Value -> Maybe PrimitiveValue
 prim (Primitive v) = Just v
 prim _ = Nothing
@@ -172,6 +77,7 @@ array _ = Nothing
 object : Value -> Maybe (Map Value)
 object (Object m) = Just m
 object _ = Nothing
+
 
 data Kind =
       KNull
@@ -188,10 +94,6 @@ Eq Kind where
     KObject == KObject = True
     _ == _ = False
 
-prim_kind_of : PrimitiveValue -> PrimitiveKind
-prim_kind_of (Boolean x) = KBoolean
-prim_kind_of (Number x) = KNumber
-prim_kind_of (Text x) = KText
 
 data Schema =
       SNull
@@ -203,106 +105,6 @@ data Schema =
 
 %name Schema s, s1, s2
 
-Uninhabited (SNull = SBoolean) where
-    uninhabited Refl impossible
-
-Uninhabited (SNull = SNumber) where
-    uninhabited Refl impossible
-
-Uninhabited (SNull = SText) where
-    uninhabited Refl impossible
-
-Uninhabited (SNull = SArray _ _) where
-    uninhabited Refl impossible
-
-Uninhabited (SNull = SObject _) where
-    uninhabited Refl impossible
-
-Uninhabited (SBoolean = SNull) where
-    uninhabited Refl impossible
-
-Uninhabited (SBoolean = SNumber) where
-    uninhabited Refl impossible
-
-Uninhabited (SBoolean = SText) where
-    uninhabited Refl impossible
-
-Uninhabited (SBoolean = SArray _ _) where
-    uninhabited Refl impossible
-
-Uninhabited (SBoolean = SObject _) where
-    uninhabited Refl impossible
-
-Uninhabited (SNumber = SNull) where
-    uninhabited Refl impossible
-
-Uninhabited (SNumber = SBoolean) where
-    uninhabited Refl impossible
-
-Uninhabited (SNumber = SText) where
-    uninhabited Refl impossible
-
-Uninhabited (SNumber = SArray _ _) where
-    uninhabited Refl impossible
-
-Uninhabited (SNumber = SObject _) where
-    uninhabited Refl impossible
-
-Uninhabited (SText = SNull) where
-    uninhabited Refl impossible
-
-Uninhabited (SText = SBoolean) where
-    uninhabited Refl impossible
-
-Uninhabited (SText = SNumber) where
-    uninhabited Refl impossible
-
-Uninhabited (SText = SArray _ _) where
-    uninhabited Refl impossible
-
-Uninhabited (SText = SObject _) where
-    uninhabited Refl impossible
-
-Uninhabited (SArray _ _ = SNull) where
-    uninhabited Refl impossible
-
-Uninhabited (SArray _ _ = SBoolean) where
-    uninhabited Refl impossible
-
-Uninhabited (SArray _ _ = SNumber) where
-    uninhabited Refl impossible
-
-Uninhabited (SArray _ _ = SText) where
-    uninhabited Refl impossible
-
-Uninhabited (a = b) => Uninhabited (SArray a _ = SArray b _) where
-    uninhabited Refl @{ab} = uninhabited @{ab} Refl
-
-Uninhabited (a = b) => Uninhabited (SArray _ a = SArray _ b) where
-    uninhabited Refl @{ab} = uninhabited @{ab} Refl
-
-Uninhabited (SArray _ _ = SObject _) where
-    uninhabited Refl impossible
-
-Uninhabited (SObject _ = SNull) where
-    uninhabited Refl impossible
-
-Uninhabited (SObject _ = SBoolean) where
-    uninhabited Refl impossible
-
-Uninhabited (SObject _ = SNumber) where
-    uninhabited Refl impossible
-
-Uninhabited (SObject _ = SText) where
-    uninhabited Refl impossible
-
-Uninhabited (SObject _ = SArray _ _) where
-    uninhabited Refl impossible
-
-Uninhabited (a = b) => Uninhabited (SObject a = SObject b) where
-    uninhabited Refl @{ab} = uninhabited @{ab} Refl
-
-
 allow_empty : Schema -> Maybe Bool
 allow_empty (SArray e _) = Just e
 allow_empty _ = Nothing
@@ -312,18 +114,6 @@ all_properties_exist Empty _ = True
 all_properties_exist (Entry k v m _) vmap with (contains k vmap)
     all_properties_exist (Entry k _ m _) vmap | False = False
     all_properties_exist (Entry k _ m _) vmap | True = all_properties_exist m vmap
-
-all_properties_exist_after_insert : (sm : Map Schema) -> (vm : Map Value) ->
-    (k : Key) -> (s : Schema) -> (v : Value) ->
-    all_properties_exist sm vm = True -> all_properties_exist (insert k s sm) (insert k v vm) = True
-all_properties_exist_after_insert sm vm k s v prf with (containsP k vm)
-    all_properties_exist_after_insert Empty Empty k s v prf | (ReflectT x prf1) = absurd $ prf1
-    all_properties_exist_after_insert Empty (Entry k1 y m p) k s v prf | (ReflectT x prf1) = ?h3_6
-    all_properties_exist_after_insert (Entry k1 y m p) vm k s v prf | (ReflectT x prf1) = ?h3_4
-    all_properties_exist_after_insert sm vm k s v prf | (ReflectF f prf1) = ?h3_2
-
-all_properties_exist_after_remove : (sm : Map Schema) -> (vm : Map Value) -> (k : Key) ->
-    all_properties_exist sm vm = True -> all_properties_exist (remove k sm) (remove k vm) = True
 
 mutual
     validate_properties : Map Value -> Map Schema -> Bool
@@ -350,12 +140,6 @@ mutual
         all_properties_exist smap vmap && validate_properties vmap smap
     validate (SObject _) _ = False
 
-validate_properties_after_insert : (vm : Map Value) -> (sm : Map Schema) ->
-    (k : Key) -> (v : Value) -> (s : Schema) -> validate s v = True ->
-    validate_properties vm sm = True -> validate_properties (insert k v vm) (insert k s sm) = True
-
-validate_properties_after_remove : (vm : Map Value) -> (sm : Map Schema) -> (k : Key) ->
-    validate_properties vm sm = True -> validate_properties (remove k vm) (remove k sm) = True
 
 data Lens =
       Make Kind
@@ -393,10 +177,6 @@ flip_map : List (PrimitiveValue, PrimitiveValue) -> List (PrimitiveValue, Primit
 flip_map [] = []
 flip_map ((x, y) :: xs) = (y, x) :: (flip_map xs)
 
-flip_map_twice : (m : List (PrimitiveValue, PrimitiveValue)) -> flip_map (flip_map m) = m
-flip_map_twice [] = Refl
-flip_map_twice ((x, y) :: xs) = rewrite flip_map_twice xs in Refl
-
 validate_map : PrimitiveKind -> PrimitiveKind -> List (PrimitiveValue, PrimitiveValue) -> Bool
 validate_map _ _ [] = True
 validate_map kx ky ((x, y) :: map) =
@@ -406,14 +186,6 @@ convert_prim : PrimitiveValue -> List (PrimitiveValue, PrimitiveValue) -> Maybe 
 convert_prim _ [] = Nothing
 convert_prim key ((k, v) :: xs) = if key == k then Just v else convert_prim key xs
 
-flip_map_preserves_validity : (a, b : PrimitiveKind) -> (m : List (PrimitiveValue, PrimitiveValue)) ->
-    validate_map a b m = True -> validate_map b a (flip_map m) = True
-flip_map_preserves_validity a b [] prf = Refl
-flip_map_preserves_validity a b ((x, y) :: xs) prf =
-    let sprf = and_split (prim_kind_of x == a) (prim_kind_of y == b && Delay (validate_map a b xs)) prf
-        sprf2 = and_split (prim_kind_of y == b) (validate_map a b xs) (snd sprf)
-        ind = flip_map_preserves_validity a b xs (snd sprf2)
-    in rewrite fst sprf2 in rewrite fst sprf in ind
 
 reverse_lens : Lens -> Lens
 reverse_lens (Make k) = Destroy k

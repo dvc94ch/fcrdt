@@ -205,7 +205,7 @@ hoist_property_preserves_validity : (h, t : Key) ->
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
     transform_schema (HoistProperty h t) s = Just s' -> transform_value (HoistProperty h t) v = v' ->
     validate s v = True -> validate s' v' = True
-hoist_property_preserves_validity _ _ SNull _ _ _ Refl _ _ impossible
+{-hoist_property_preserves_validity _ _ SNull _ _ _ Refl _ _ impossible
 hoist_property_preserves_validity _ _ SBoolean _ _ _ Refl _ _ impossible
 hoist_property_preserves_validity _ _ SNumber _ _ _ Refl _ _ impossible
 hoist_property_preserves_validity _ _ SText _ _ _ Refl _ _ impossible
@@ -271,13 +271,78 @@ hoist_property_preserves_validity h t (SObject sm) s' v v' prf prf1 prf2 with (g
                         valid2 = validate_properties_after_remove hvm hsm t (snd split2)
                         join = and_join (exist2, valid2)
                         valid = validate_properties_after_insert (insert t tv vm) (insert t ts sm) h (Object (remove t hvm)) (SObject (remove t hsm)) join valid'
-                    in rewrite exist in rewrite valid in Refl
+                    in rewrite exist in rewrite valid in Refl-}
 
 plunge_property_preserves_validity : (h, t : Key) ->
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
     transform_schema (PlungeProperty h t) s = Just s' -> transform_value (PlungeProperty h t) v = v' ->
     validate s v = True -> validate s' v' = True
-plunge_property_preserves_validity h t s s' v v' prf prf1 prf2 = ?plunge_property_preserves_validity_rhs
+{-plunge_property_preserves_validity _ _ SNull _ _ _ Refl _ _ impossible
+plunge_property_preserves_validity _ _ SBoolean _ _ _ Refl _ _ impossible
+plunge_property_preserves_validity _ _ SNumber _ _ _ Refl _ _ impossible
+plunge_property_preserves_validity _ _ SText _ _ _ Refl _ _ impossible
+plunge_property_preserves_validity _ _ (SArray _ _) _ _ _ Refl _ _ impossible
+plunge_property_preserves_validity h t (SObject sm) s' v v' prf prf1 prf2 with (get t sm, get h sm, t == h) proof prf3
+    plunge_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Nothing, _, _) = absurd $ prf
+    plunge_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just _, Nothing, _) = absurd $ prf
+    plunge_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just _, Just SNull, _) = absurd $ prf
+    plunge_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just _, Just SBoolean, _) = absurd $ prf
+    plunge_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just _, Just SNumber, _) = absurd $ prf
+    plunge_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just _, Just SText, _) = absurd $ prf
+    plunge_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just _, Just (SArray _ _), _) = absurd $ prf
+    plunge_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just _, Just (SObject _), True) = absurd $ prf
+    plunge_property_preserves_validity h t (SObject sm) s' v v' prf prf1 prf2 | (Just ts, Just (SObject hsm), False) with (get t hsm) proof prf4
+        plunge_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just _, Just (SObject _), False) | Just _ = absurd $ prf
+        plunge_property_preserves_validity _ _ (SObject _) _ Null _ _ _ prf2 | (Just _, Just (SObject _), False) | Nothing = absurd prf2
+        plunge_property_preserves_validity _ _ (SObject _) _ (Primitive _) _ _ _ prf2 | (Just _, Just (SObject _), False) | Nothing = absurd prf2
+        plunge_property_preserves_validity _ _ (SObject _) _ (Array _) _ _ _ prf2 | (Just _, Just (SObject _), False) | Nothing = absurd prf2
+        plunge_property_preserves_validity h t (SObject sm) v (Object vm) v' prf prf1 prf2 | (Just ts, Just (SObject hsm), False) | Nothing with (get h vm, get t vm) proof prf5
+            plunge_property_preserves_validity h t (SObject sm) v (Object vm) v' prf prf1 prf2 | (Just ts, Just (SObject hsm), False) | Nothing | (Nothing, _) =
+                let
+                    split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                    contra' = not_all_properties_exist sm vm h (cong (fst . snd) prf3) (cong fst prf5)
+                    contra = trans (sym contra') (fst split)
+                in absurd contra
+            plunge_property_preserves_validity h t (SObject sm) v (Object vm) v' prf prf1 prf2 | (Just ts, Just (SObject hsm), False) | Nothing | (Just Null, _) =
+                let
+                    split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                    contra' = invalid_property vm sm h Null (SObject hsm) (cong fst prf5) (cong (fst . snd) prf3) Refl
+                    contra = trans (sym contra') (snd split)
+                in absurd contra
+            plunge_property_preserves_validity h t (SObject sm) v (Object vm) v' prf prf1 prf2 | (Just ts, Just (SObject hsm), False) | Nothing | (Just (Primitive hvm), _) =
+                let
+                    split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                    contra' = invalid_property vm sm h (Primitive hvm) (SObject hsm) (cong fst prf5) (cong (fst . snd) prf3) Refl
+                    contra = trans (sym contra') (snd split)
+                in absurd contra
+            plunge_property_preserves_validity h t (SObject sm) v (Object vm) v' prf prf1 prf2 | (Just ts, Just (SObject hsm), False) | Nothing | (Just (Array hvm), _) =
+                let
+                    split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                    contra' = invalid_property vm sm h (Array hvm) (SObject hsm) (cong fst prf5) (cong (fst . snd) prf3) Refl
+                    contra = trans (sym contra') (snd split)
+                in absurd contra
+            plunge_property_preserves_validity h t (SObject sm) v (Object vm) v' prf prf1 prf2 | (Just ts, Just (SObject hsm), False) | Nothing | (Just (Object hvm), Nothing) =
+                let
+                    split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                    contra' = not_all_properties_exist sm vm t (cong fst prf3) (cong snd prf5)
+                    contra = trans (sym contra') (fst split)
+                in absurd contra
+            plunge_property_preserves_validity h t (SObject sm) v (Object vm) v' prf prf1 prf2 | (Just ts, Just (SObject hsm), False) | Nothing | (Just (Object hvm), Just tv) =
+                rewrite sym $ justInjective prf in
+                rewrite sym prf1 in
+                let
+                    split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                    exist' = all_properties_exist_after_remove sm vm t (fst split)
+                    exist = all_properties_exist_after_insert (remove t sm) (remove t vm) h (SObject (insert t ts hsm)) (Object (insert t tv hvm)) exist'
+                    valid''' = still_valid vm sm h (Object hvm) (SObject hsm) (cong fst prf5) (cong (fst . snd) prf3) (snd split)
+                    split2 = and_split (all_properties_exist hsm hvm) (validate_properties hvm hsm) valid'''
+                    valid'' = still_valid vm sm t tv ts (cong snd prf5) (cong fst prf3) (snd split)
+                    exist2 = all_properties_exist_after_insert hsm hvm t ts tv (fst split2)
+                    valid2 = validate_properties_after_insert hvm hsm t tv ts valid'' (snd split2)
+                    join = and_join (exist2, valid2)
+                    valid' = validate_properties_after_remove vm sm t (snd split)
+                    valid = validate_properties_after_insert (remove t vm) (remove t sm) h (Object (insert t tv hvm)) (SObject (insert t ts hsm)) join valid'
+                in rewrite exist in rewrite valid in Refl-}
 
 wrap_preserves_validity :
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
@@ -572,7 +637,25 @@ lens_preserves_validity (LensIn _ _) (SArray _ _) _ _ _ Refl _ _ impossible
 lens_preserves_validity (LensIn _ _) (SObject _) _ Null _ _ _ Refl impossible
 lens_preserves_validity (LensIn _ _) (SObject _) _ (Primitive _) _ _ _ Refl impossible
 lens_preserves_validity (LensIn _ _) (SObject _) _ (Array _) _ _ _ Refl impossible
-lens_preserves_validity (LensIn k l) (SObject ms) s' (Object mv) v' prf prf1 prf2 = ?h_10
+lens_preserves_validity (LensIn k l) (SObject sm) s' (Object vm) v' prf prf1 prf2 with (get k sm) proof prf3
+    lens_preserves_validity (LensIn k l) (SObject sm) s' (Object vm) v' prf prf1 prf2 | Nothing = absurd $ prf
+    lens_preserves_validity (LensIn k l) (SObject sm) s' (Object vm) v' prf prf1 prf2 | Just s2 with (get k vm) proof prf4
+        lens_preserves_validity (LensIn k l) (SObject sm) s' (Object vm) v' prf prf1 prf2 | Just s2 | Nothing =
+            let split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                invalid = not_all_properties_exist sm vm k prf3 prf4
+                contra = trans (sym invalid) (fst split)
+            in absurd contra
+        lens_preserves_validity (LensIn k l) (SObject sm) s' (Object vm) v' prf prf1 prf2 | Just s2 | Just v2 with (transform_schema l s2) proof prf5
+            lens_preserves_validity (LensIn k l) (SObject sm) s' (Object vm) v' prf prf1 prf2 | Just s2 | Just v2 | Nothing = absurd $ prf
+            lens_preserves_validity (LensIn k l) (SObject sm) s' (Object vm) v' prf prf1 prf2 | Just s2 | Just v2 | Just s2' =
+                rewrite sym $ justInjective prf in
+                rewrite sym $ prf1 in
+                let split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                    still = still_valid vm sm k v2 s2 prf4 prf3 (snd split)
+                    ind = lens_preserves_validity l s2 s2' v2 (transform_value l v2) prf5 Refl still
+                    exist = all_properties_exist_after_insert sm vm k s2' (transform_value l v2) (fst split)
+                    valid = validate_properties_after_insert vm sm k (transform_value l v2) s2' ind (snd split)
+                in rewrite exist in valid
 lens_preserves_validity (LensMap _) SNull _ _ _ Refl _ _ impossible
 lens_preserves_validity (LensMap _) SBoolean _ _ _ Refl _ _ impossible
 lens_preserves_validity (LensMap _) SNumber _ _ _ Refl _ _ impossible
@@ -588,28 +671,32 @@ lens_preserves_validity (LensMap l) (SArray e s2) s' (Array xs) v' prf prf1 prf2
         absurd $ justInjective $ prf
     lens_preserves_validity (LensMap _) (SArray _ _) SText (Array _) _ prf _ _ | (Just _) =
         absurd $ justInjective $ prf
+    lens_preserves_validity (LensMap _) (SArray _ _) (SObject _) (Array _) _ prf _ _ | (Just _) =
+        absurd $ justInjective $ prf
     lens_preserves_validity (LensMap _) (SArray _ _) (SArray _ _) (Array _) Null _ prf1 _ | (Just _) =
         absurd $ prf1
     lens_preserves_validity (LensMap _) (SArray _ _) (SArray _ _) (Array _) (Primitive _) _ prf1 _ | (Just _) =
         absurd $ prf1
-    lens_preserves_validity (LensMap _) (SArray _ _) (SArray _ _) (Array []) (Array []) prf _ prf2 | (Just _) =
-        rewrite sym $ justInjective $ cong allow_empty $ justInjective prf in
-        rewrite prf2 in Refl
+    lens_preserves_validity (LensMap _) (SArray _ _) (SArray _ _) (Array _) (Object _) _ prf1 _ | (Just _) =
+        absurd $ prf1
     lens_preserves_validity (LensMap _) (SArray _ _) (SArray _ _) (Array []) (Array (_ :: _)) _ prf1 _ | (Just _) =
         absurd $ prf1
     lens_preserves_validity (LensMap _) (SArray _ _) (SArray _ _) (Array (_ :: _)) (Array []) _ prf1 _ | (Just _) =
         absurd $ prf1
+    lens_preserves_validity (LensMap _) (SArray _ _) (SArray _ _) (Array []) (Array []) prf _ prf2 | (Just _) =
+        rewrite sym $ justInjective $ cong allow_empty $ justInjective prf in
+        rewrite prf2 in Refl
     lens_preserves_validity (LensMap l) (SArray e s2) (SArray e' s2') (Array (v2 :: xs)) (Array (v2' :: xs')) prf prf1 prf2 | (Just s2'2) with (validate s2 v2) proof prf4
         lens_preserves_validity (LensMap l) (SArray e s2) (SArray e' s2') (Array (v2 :: xs)) (Array (v2' :: xs')) prf prf1 prf2 | (Just s2'2) | False = absurd $ prf2
         lens_preserves_validity (LensMap l) (SArray e s2) (SArray e' s2') (Array (v2 :: xs)) (Array (v2' :: xs')) prf prf1 prf2 | (Just s2'2) | True =
-        let ind = lens_preserves_validity l s2 s2' v2 v2' in
-            ?hhhhhhh
+            let eqs = trans prf3 $ cong sarray $ justInjective prf
+                eqv = consInjective $ justInjective $ cong array prf1
+                ind = lens_preserves_validity l s2 s2' v2 v2' eqs (fst eqv) prf4
+            in rewrite ind in
+            let ind = lens_preserves_validity (LensMap l) (SArray True s2) (SArray True s2') (Array xs) (Array xs')
+            in ?hhhhhhh
 
-    lens_preserves_validity (LensMap _) (SArray _ _) (SArray _ _) (Array _) (Object _) _ prf1 _ | (Just _) =
-        absurd $ prf1
 
-    lens_preserves_validity (LensMap _) (SArray _ _) (SObject _) (Array _) _ prf _ _ | (Just _) =
-        absurd $ justInjective $ prf
 lens_preserves_validity (LensMap _) (SArray _ _) _ (Object _) _ _ _ Refl impossible
 lens_preserves_validity (LensMap _) (SObject _) _ _ _ Refl _ _ impossible
 lens_preserves_validity (Convert k k' m) s s' v v' prf prf1 prf2 =

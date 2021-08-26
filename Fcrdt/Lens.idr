@@ -109,6 +109,10 @@ allow_empty : Schema -> Maybe Bool
 allow_empty (SArray e _) = Just e
 allow_empty _ = Nothing
 
+sarray : Schema -> Maybe Schema
+sarray (SArray _ s) = Just s
+sarray _ = Nothing
+
 all_properties_exist : Map Schema -> Map Value -> Bool
 all_properties_exist Empty _ = True
 all_properties_exist (Entry k v m _) vmap with (contains k vmap)

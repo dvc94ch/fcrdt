@@ -69,11 +69,20 @@ validate_properties_after_remove : (vm : Map Value) -> (sm : Map Schema) -> (k :
     validate_properties vm sm = True -> validate_properties (remove k vm) (remove k sm) = True
 
 public export
+invalid_property : (vm : Map Value) -> (sm : Map Schema) -> (k : Key) ->
+    (v : Value) -> (s : Schema) -> get k vm = Just v -> get k sm = Just s -> validate s v = False ->
+    validate_properties vm sm = False
+
+public export
 still_valid : (vm : Map Value) -> (sm : Map Schema) ->
     (k : Key) -> (kvm : Value) -> (ksm : Schema) ->
     get k vm = Just kvm -> get k sm = Just ksm ->
     validate_properties vm sm = True -> validate ksm kvm = True
 
+public export
+still_invalid : (vm : Map Value) -> (sm : Map Schema) ->
+    (k : Key) ->  get k vm = Just kvm -> get k sm = Just ksm ->
+    validate ksm kvm = False -> validate_properties vm sm = False
 
 public export
 flip_map_twice : (m : List (PrimitiveValue, PrimitiveValue)) -> flip_map (flip_map m) = m

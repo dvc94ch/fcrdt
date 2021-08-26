@@ -64,12 +64,21 @@ and_split True (Delay False) Refl impossible
 and_split True (Delay True) _ = (Refl, Refl)
 
 public export
+and_join : (a = True, b = True) -> a && b = True
+and_join (x, y) = rewrite x in rewrite y in Refl
+
+public export
+and_join2 : a = False -> a && _ = False
+and_join2 prf = rewrite prf in Refl
+
+public export
 tuple_eq : (a, b) = (c, d) -> Not (c = d) -> Not (a = b)
 tuple_eq prf f prf1 =
     let
         ac = cong fst prf
         bd = cong snd prf
     in f (rewrite sym ac in rewrite sym bd in prf1)
+
 
 -- Maybe utils
 public export

@@ -14,7 +14,7 @@ make_preserves_validity : (k : Kind) ->
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
     transform_schema (Make k) s = Just s' -> transform_value (Make k) v = v' ->
     validate s v = True -> validate s' v' = True
-make_preserves_validity KNull _ _ _ _ Refl _ _ impossible
+{-make_preserves_validity KNull _ _ _ _ Refl _ _ impossible
 make_preserves_validity (KPrimitive KBoolean) SNull SNull _ _ Refl _ _ impossible
 make_preserves_validity (KPrimitive KBoolean) SNull SBoolean _ _ _ prf1 _ = rewrite sym prf1 in Refl
 make_preserves_validity (KPrimitive KBoolean) SNull SNumber _ _ Refl _ _ impossible
@@ -71,13 +71,13 @@ make_preserves_validity KObject SBoolean _ _ _ Refl _ _ impossible
 make_preserves_validity KObject SNumber _ _ _ Refl _ _ impossible
 make_preserves_validity KObject SText _ _ _ Refl _ _ impossible
 make_preserves_validity KObject (SArray _ _) _ _ _ Refl _ _ impossible
-make_preserves_validity KObject (SObject _) _ _ _ Refl _ _ impossible
+make_preserves_validity KObject (SObject _) _ _ _ Refl _ _ impossible-}
 
 destroy_preserves_validity : (k : Kind) ->
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
     transform_schema (Destroy k) s = Just s' -> transform_value (Destroy k) v = v' ->
     validate s v = True -> validate s' v' = True
-destroy_preserves_validity KNull _ _ _ _ Refl _ _ impossible
+{-destroy_preserves_validity KNull _ _ _ _ Refl _ _ impossible
 destroy_preserves_validity (KPrimitive KBoolean) SNull _ _ _ Refl _ _ impossible
 destroy_preserves_validity (KPrimitive KBoolean) SBoolean SNull _ _ Refl prf1 _ = rewrite sym prf1 in Refl
 destroy_preserves_validity (KPrimitive KBoolean) SNumber _ _ _ Refl _ _ impossible
@@ -114,8 +114,7 @@ destroy_preserves_validity KObject SNumber _ _ _ Refl _ _ impossible
 destroy_preserves_validity KObject SText _ _ _ Refl _ _ impossible
 destroy_preserves_validity KObject (SArray _ _) _ _ _ Refl _ _ impossible
 destroy_preserves_validity KObject (SObject Empty) SNull _ _ Refl prf1 _ = rewrite sym prf1 in Refl
-destroy_preserves_validity KObject (SObject (Entry _ _ _ _)) _ _ _ Refl _ _ impossible
-
+destroy_preserves_validity KObject (SObject (Entry _ _ _ _)) _ _ _ Refl _ _ impossible-}
 
 add_property_preserves_validity : (k : Key) ->
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
@@ -206,7 +205,73 @@ hoist_property_preserves_validity : (h, t : Key) ->
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
     transform_schema (HoistProperty h t) s = Just s' -> transform_value (HoistProperty h t) v = v' ->
     validate s v = True -> validate s' v' = True
-hoist_property_preserves_validity h t s s' v v' prf prf1 prf2 = ?hoist_property_preserves_validity_rhs
+hoist_property_preserves_validity _ _ SNull _ _ _ Refl _ _ impossible
+hoist_property_preserves_validity _ _ SBoolean _ _ _ Refl _ _ impossible
+hoist_property_preserves_validity _ _ SNumber _ _ _ Refl _ _ impossible
+hoist_property_preserves_validity _ _ SText _ _ _ Refl _ _ impossible
+hoist_property_preserves_validity _ _ (SArray _ _) _ _ _ Refl _ _ impossible
+hoist_property_preserves_validity h t (SObject sm) s' v v' prf prf1 prf2 with (get h sm, get t sm) proof prf3
+    hoist_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Nothing, _) = absurd $ prf
+    hoist_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just SNull, _) = absurd $ prf
+    hoist_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just SBoolean, _) = absurd $ prf
+    hoist_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just SNumber, _) = absurd $ prf
+    hoist_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just SText, _) = absurd $ prf
+    hoist_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just (SArray _ _), _) = absurd $ prf
+    hoist_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just (SObject _), (Just _)) = absurd $ prf
+    hoist_property_preserves_validity h t (SObject sm) s' v v' prf prf1 prf2 | (Just (SObject hsm), Nothing) with (get t hsm) proof prf4
+        hoist_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just (SObject _), Nothing) | Nothing = absurd $ prf
+        hoist_property_preserves_validity _ _ (SObject _) _ Null _ _ _ prf2 | (Just (SObject _), Nothing) | Just _ = absurd prf2
+        hoist_property_preserves_validity _ _ (SObject _) _ (Primitive _) _ _ _ prf2 | (Just (SObject _), Nothing) | Just _ = absurd prf2
+        hoist_property_preserves_validity _ _ (SObject _) _ (Array _) _ _ _ prf2 | (Just (SObject _), Nothing) | Just _ = absurd prf2
+        hoist_property_preserves_validity h t (SObject sm) s' (Object vm) v' prf prf1 prf2 | (Just (SObject hsm), Nothing) | Just ts with (get h vm) proof prf5
+            hoist_property_preserves_validity h _ (SObject sm) _ (Object vm) _ _ _prf2 | (Just (SObject _), Nothing) | Just _ | Nothing =
+                let
+                    split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                    contra' = not_all_properties_exist sm vm h (cong fst prf3) prf5
+                    contra = trans (sym contra') (fst split)
+                in absurd contra
+            hoist_property_preserves_validity h _ (SObject sm) _ (Object vm) _ _ _ prf2 | (Just (SObject hsm), Nothing) | Just _ | Just Null =
+                let
+                    split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                    contra' = invalid_property vm sm h Null (SObject hsm) prf5 (cong fst prf3) Refl
+                    contra = trans (sym contra') (snd split)
+                in absurd contra
+            hoist_property_preserves_validity h _ (SObject sm) _ (Object vm) _ _ _ prf2 | (Just (SObject hsm), Nothing) | Just _ | Just (Primitive hvm) =
+                let
+                    split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                    contra' = invalid_property vm sm h (Primitive hvm) (SObject hsm) prf5 (cong fst prf3) Refl
+                    contra = trans (sym contra') (snd split)
+                in absurd contra
+            hoist_property_preserves_validity h _ (SObject sm) _ (Object vm) _ _ _ prf2 | (Just (SObject hsm), Nothing) | Just _ | Just (Array hvm) =
+                let
+                    split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                    contra' = invalid_property vm sm h (Array hvm) (SObject hsm) prf5 (cong fst prf3) Refl
+                    contra = trans (sym contra') (snd split)
+                in absurd contra
+            hoist_property_preserves_validity h t (SObject sm) s' (Object vm) v' prf prf1 prf2 | (Just (SObject hsm), Nothing) | Just ts | Just (Object hvm) with (get t hvm) proof prf6
+                hoist_property_preserves_validity h t (SObject sm) s' (Object vm) v' prf prf1 prf2 | (Just (SObject hsm), Nothing) | Just ts | Just (Object hvm) | Nothing =
+                    let
+                        split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                        contra'' = not_all_properties_exist hsm hvm t prf4 prf6
+                        contra' = still_invalid vm sm h prf5 (cong fst prf3) (and_join2 contra'')
+                        contra = trans (sym contra') (snd split)
+                    in absurd contra
+                hoist_property_preserves_validity h t (SObject sm) s' (Object vm) v' prf prf1 prf2 | (Just (SObject hsm), Nothing) | Just ts | Just (Object hvm) | (Just tv) =
+                    rewrite sym $ justInjective prf in
+                    rewrite sym prf1 in
+                    let
+                        split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                        exist' = all_properties_exist_after_insert sm vm t ts tv (fst split)
+                        exist = all_properties_exist_after_insert (insert t ts sm) (insert t tv vm) h (SObject (remove t hsm)) (Object (remove t hvm)) exist'
+                        valid''' = still_valid vm sm h (Object hvm) (SObject hsm) prf5 (cong fst prf3) (snd split)
+                        split2 = and_split (all_properties_exist hsm hvm) (validate_properties hvm hsm) valid'''
+                        valid'' = still_valid hvm hsm t tv ts prf6 prf4 (snd split2)
+                        valid' = validate_properties_after_insert vm sm t tv ts valid'' (snd split)
+                        exist2 = all_properties_exist_after_remove hsm hvm t (fst split2)
+                        valid2 = validate_properties_after_remove hvm hsm t (snd split2)
+                        join = and_join (exist2, valid2)
+                        valid = validate_properties_after_insert (insert t tv vm) (insert t ts sm) h (Object (remove t hvm)) (SObject (remove t hsm)) join valid'
+                    in rewrite exist in rewrite valid in Refl
 
 plunge_property_preserves_validity : (h, t : Key) ->
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
@@ -244,7 +309,7 @@ convert_preserves_validity : (k, k' : PrimitiveKind) -> (m : List (PrimitiveValu
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
     transform_schema (Convert k k' m) s = Just s' -> transform_value (Convert k k' m) v = v' ->
     validate s v = True -> validate s' v' = True
-convert_preserves_validity k k' m s s' v v' prf prf1 prf2 with (validate_map k k' m) proof prf3
+{-convert_preserves_validity k k' m s s' v v' prf prf1 prf2 with (validate_map k k' m) proof prf3
     convert_preserves_validity KBoolean KBoolean _ _ _ _ _ prf _ _ | False = absurd $ prf
     convert_preserves_validity KBoolean KNumber _ _ _ _ _ prf _ _ | False = absurd $ prf
     convert_preserves_validity KBoolean KText _ _ _ _ _ prf _ _ | False = absurd $ prf
@@ -473,7 +538,7 @@ convert_preserves_validity k k' m s s' v v' prf prf1 prf2 with (validate_map k k
         convert_preserves_validity KText KText m SText SText (Primitive (Text va)) _ _ _ _ | True | (Just (Boolean vb)) =
             absurd $ convert_prim_kind KText KText (Text va) (Boolean vb) m prf3 Refl prf4
         convert_preserves_validity KText KText m SText SText (Primitive (Text va)) _ _ _ _ | True | (Just (Number vb)) =
-            absurd $ convert_prim_kind KText KText (Text va) (Number vb) m prf3 Refl prf4
+            absurd $ convert_prim_kind KText KText (Text va) (Number vb) m prf3 Refl prf4-}
 
 
 ||| Transforming a valid value must result in a valid value

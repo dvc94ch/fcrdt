@@ -41,6 +41,32 @@ public export
 Uninhabited (Text a = Number b) where
     uninhabited Refl impossible
 
+
+public export
+Uninhabited (KBoolean = KNumber) where
+    uninhabited Refl impossible
+
+public export
+Uninhabited (KBoolean = KText) where
+    uninhabited Refl impossible
+
+public export
+Uninhabited (KNumber = KBoolean) where
+    uninhabited Refl impossible
+
+public export
+Uninhabited (KNumber = KText) where
+    uninhabited Refl impossible
+
+public export
+Uninhabited (KText = KBoolean) where
+    uninhabited Refl impossible
+
+public export
+Uninhabited (KText = KNumber) where
+    uninhabited Refl impossible
+
+
 public export
 Uninhabited (Null = Primitive _) where
     uninhabited Refl impossible
@@ -100,6 +126,7 @@ Uninhabited (Object _ = Array _) where
 public export
 Uninhabited (a = b) => Uninhabited (Object a = Object b) where
     uninhabited Refl @{ab} = uninhabited @{ab} Refl
+
 
 public export
 Uninhabited (SNull = SBoolean) where

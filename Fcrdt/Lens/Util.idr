@@ -55,6 +55,9 @@ public export
 all_properties_exist_after_remove : (sm : Map Schema) -> (vm : Map Value) -> (k : Key) ->
     all_properties_exist sm vm = True -> all_properties_exist (remove k sm) (remove k vm) = True
 
+public export
+not_all_properties_exist : (sm : Map Schema) -> (vm : Map Value) ->
+    (k : Key) -> get k sm = Just _ -> get k vm = Nothing -> all_properties_exist sm vm = False
 
 public export
 validate_properties_after_insert : (vm : Map Value) -> (sm : Map Schema) ->
@@ -64,6 +67,12 @@ validate_properties_after_insert : (vm : Map Value) -> (sm : Map Schema) ->
 public export
 validate_properties_after_remove : (vm : Map Value) -> (sm : Map Schema) -> (k : Key) ->
     validate_properties vm sm = True -> validate_properties (remove k vm) (remove k sm) = True
+
+public export
+still_valid : (vm : Map Value) -> (sm : Map Schema) ->
+    (k : Key) -> (kvm : Value) -> (ksm : Schema) ->
+    get k vm = Just kvm -> get k sm = Just ksm ->
+    validate_properties vm sm = True -> validate ksm kvm = True
 
 
 public export
@@ -80,3 +89,8 @@ flip_map_preserves_validity a b ((x, y) :: xs) prf =
         sprf2 = and_split (prim_kind_of y == b) (validate_map a b xs) (snd sprf)
         ind = flip_map_preserves_validity a b xs (snd sprf2)
     in rewrite fst sprf2 in rewrite fst sprf in ind
+
+public export
+convert_prim_kind : (a, b : PrimitiveKind) -> (va, vb : PrimitiveValue) ->
+    (m : List (PrimitiveValue, PrimitiveValue)) -> validate_map a b m = True ->
+    prim_kind_of va = a -> convert_prim va m = Just vb -> prim_kind_of vb = b

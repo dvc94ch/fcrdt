@@ -352,8 +352,11 @@ transform_value (LensIn k l) (Object vm) =
 transform_value (LensIn _ _) v = v
 transform_value (LensMap l) (Array xs) = Array (map (transform_value l) xs)
 transform_value (LensMap _) v = v
-transform_value (Convert _ _ m) (Primitive v) =
+transform_value (Convert _ b m) (Primitive v) =
     case convert_prim v m of
         Just v => (Primitive v)
-        Nothing => (Primitive v)
+        Nothing => case b of
+            KBoolean => Primitive (Boolean False)
+            KNumber => Primitive (Number 0)
+            KText => Primitive (Text [])
 transform_value (Convert _ _ _) v = v

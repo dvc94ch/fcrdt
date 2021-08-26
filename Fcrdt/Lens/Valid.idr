@@ -172,7 +172,35 @@ rename_property_preserves_validity : (k, k' : Key) ->
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
     transform_schema (RenameProperty k k') s = Just s' -> transform_value (RenameProperty k k') v = v' ->
     validate s v = True -> validate s' v' = True
-rename_property_preserves_validity k k' s s' v v' prf prf1 prf2 = ?rename_property_preserves_validity_rhs
+rename_property_preserves_validity _ _ SNull _ _ _ Refl _ _ impossible
+rename_property_preserves_validity _ _ SBoolean _ _ _ Refl _ _ impossible
+rename_property_preserves_validity _ _ SNumber _ _ _ Refl _ _ impossible
+rename_property_preserves_validity _ _ SText _ _ _ Refl _ _ impossible
+rename_property_preserves_validity _ _ (SArray _ _) _ _ _ Refl _ _ impossible
+rename_property_preserves_validity k k' (SObject sm) s' v v' prf prf1 prf2 with (get k sm, get k' sm) proof prf3
+    rename_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Nothing, _) = absurd $ prf
+    rename_property_preserves_validity _ _ (SObject _) _ _ _ prf _ _ | (Just _, Just _) = absurd $ prf
+    rename_property_preserves_validity _ _ (SObject _) _ Null _ _ _ prf2 | (Just _, Nothing) = absurd $ prf2
+    rename_property_preserves_validity _ _ (SObject _) _ (Primitive _) _ _ _ prf2 | (Just _, Nothing) = absurd $ prf2
+    rename_property_preserves_validity _ _ (SObject _) _ (Array _) _ _ _ prf2 | (Just _, Nothing) = absurd $ prf2
+    rename_property_preserves_validity k k' (SObject sm) _ (Object vm) _ prf prf1 prf2 | (Just ksm, Nothing) with (get k vm) proof prf4
+        rename_property_preserves_validity k k' (SObject sm) _ (Object vm) _ prf prf1 prf2 | (Just ksm, Nothing) | Just kvm =
+            rewrite sym $ justInjective prf in
+            rewrite sym prf1 in
+            let
+                split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                exist' = all_properties_exist_after_remove sm vm k (fst split)
+                exist = all_properties_exist_after_insert (remove k sm) (remove k vm) k' ksm kvm exist'
+                valid'' = still_valid vm sm k kvm ksm prf4 (cong fst prf3) (snd split)
+                valid' = validate_properties_after_remove vm sm k (snd split)
+                valid = validate_properties_after_insert (remove k vm) (remove k sm) k' kvm ksm valid'' valid'
+            in rewrite exist in rewrite valid in Refl
+        rename_property_preserves_validity k k' (SObject sm) _ (Object vm) _ prf prf1 prf2 | (Just kv, Nothing) | Nothing =
+            let
+                split = and_split (all_properties_exist sm vm) (validate_properties vm sm) prf2
+                contra' = not_all_properties_exist sm vm k (cong fst prf3) prf4
+                contra = trans (sym contra') (fst split)
+            in absurd contra
 
 hoist_property_preserves_validity : (h, t : Key) ->
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
@@ -216,7 +244,236 @@ convert_preserves_validity : (k, k' : PrimitiveKind) -> (m : List (PrimitiveValu
     (s : Schema) -> (s' : Schema) -> (v : Value) -> (v' : Value) ->
     transform_schema (Convert k k' m) s = Just s' -> transform_value (Convert k k' m) v = v' ->
     validate s v = True -> validate s' v' = True
-convert_preserves_validity k k' m s s' v v' prf prf1 prf2 = ?convert_preserves_validity_rhs
+convert_preserves_validity k k' m s s' v v' prf prf1 prf2 with (validate_map k k' m) proof prf3
+    convert_preserves_validity KBoolean KBoolean _ _ _ _ _ prf _ _ | False = absurd $ prf
+    convert_preserves_validity KBoolean KNumber _ _ _ _ _ prf _ _ | False = absurd $ prf
+    convert_preserves_validity KBoolean KText _ _ _ _ _ prf _ _ | False = absurd $ prf
+    convert_preserves_validity KNumber KBoolean _ _ _ _ _ prf _ _ | False = absurd $ prf
+    convert_preserves_validity KNumber KNumber _ _ _ _ _ prf _ _ | False = absurd $ prf
+    convert_preserves_validity KNumber KText _ _ _ _ _ prf _ _ | False = absurd $ prf
+    convert_preserves_validity KText KBoolean _ _ _ _ _ prf _ _ | False = absurd $ prf
+    convert_preserves_validity KText KNumber _ _ _ _ _ prf _ _ | False = absurd $ prf
+    convert_preserves_validity KText KText _ _ _ _ _ prf _ _ | False = absurd $ prf
+
+    convert_preserves_validity KBoolean KBoolean _ SNull _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KNumber _ SNull _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KText _ SNull _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KBoolean _ SNumber _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KNumber _ SNumber _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KText _ SNumber _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KBoolean _ SText _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KNumber _ SText _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KText _ SText _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KBoolean _ (SArray _ _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KNumber _ (SArray _ _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KText _ (SArray _ _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KBoolean _ (SObject _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KNumber _ (SObject _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KBoolean KText _ (SObject _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KBoolean _ SNull _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KNumber _ SNull _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KText _ SNull _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KBoolean _ SBoolean _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KNumber _ SBoolean _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KText _ SBoolean _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KBoolean _ SText _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KNumber _ SText _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KText _ SText _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KBoolean _ (SArray _ _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KNumber _ (SArray _ _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KText _ (SArray _ _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KBoolean _ (SObject _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KNumber _ (SObject _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KNumber KText _ (SObject _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KBoolean _ SNull _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KNumber _ SNull _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KText _ SNull _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KBoolean _ SBoolean _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KNumber _ SBoolean _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KText _ SBoolean _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KBoolean _ SNumber _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KNumber _ SNumber _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KText _ SNumber _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KBoolean _ (SArray _ _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KNumber _ (SArray _ _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KText _ (SArray _ _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KBoolean _ (SObject _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KNumber _ (SObject _) _ _ _ prf _ _ | True = absurd $ prf
+    convert_preserves_validity KText KText _ (SObject _) _ _ _ prf _ _ | True = absurd $ prf
+
+    convert_preserves_validity KBoolean KBoolean _ SBoolean SNull _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KNumber _ SBoolean SNull _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KText _ SBoolean SNull _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KNumber _ SBoolean SBoolean _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KText _ SBoolean SBoolean _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KBoolean _ SBoolean SNumber _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KText _ SBoolean SNumber _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KBoolean _ SBoolean SText _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KNumber _ SBoolean SText _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KBoolean _ SBoolean (SArray _ _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KNumber _ SBoolean (SArray _ _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KText _ SBoolean (SArray _ _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KBoolean _ SBoolean (SObject _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KNumber _ SBoolean (SObject _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KBoolean KText _ SBoolean (SObject _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KBoolean _ SNumber SNull _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KNumber _ SNumber SNull _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KText _ SNumber SNull _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KNumber _ SNumber SBoolean _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KText _ SNumber SBoolean _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KBoolean _ SNumber SNumber _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KText _ SNumber SNumber _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KBoolean _ SNumber SText _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KNumber _ SNumber SText _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KBoolean _ SNumber (SArray _ _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KNumber _ SNumber (SArray _ _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KText _ SNumber (SArray _ _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KBoolean _ SNumber (SObject _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KNumber _ SNumber (SObject _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KNumber KText _ SNumber (SObject _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KBoolean _ SText SNull _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KNumber _ SText SNull _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KText _ SText SNull _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KNumber _ SText SBoolean _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KText _ SText SBoolean _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KBoolean _ SText SNumber _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KText _ SText SNumber _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KBoolean _ SText SText _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KNumber _ SText SText _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KBoolean _ SText (SArray _ _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KNumber _ SText (SArray _ _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KText _ SText (SArray _ _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KBoolean _ SText (SObject _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KNumber _ SText (SObject _) _ _ prf _ _ | True = absurd $ justInjective prf
+    convert_preserves_validity KText KText _ SText (SObject _) _ _ prf _ _ | True = absurd $ justInjective prf
+
+    convert_preserves_validity KBoolean KBoolean _ SBoolean SBoolean Null _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KBoolean _ SBoolean SBoolean (Array _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KBoolean _ SBoolean SBoolean (Object _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KBoolean _ SBoolean SBoolean (Primitive (Number _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KBoolean _ SBoolean SBoolean (Primitive (Text _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KNumber _ SBoolean SNumber Null _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KNumber _ SBoolean SNumber (Array _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KNumber _ SBoolean SNumber (Object _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KNumber _ SBoolean SNumber (Primitive (Number _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KNumber _ SBoolean SNumber (Primitive (Text _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KText _ SBoolean SText Null _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KText _ SBoolean SText (Array _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KText _ SBoolean SText (Object _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KText _ SBoolean SText (Primitive (Number _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KBoolean KText _ SBoolean SText (Primitive (Text _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KBoolean _ SNumber SBoolean Null _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KBoolean _ SNumber SBoolean (Array _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KBoolean _ SNumber SBoolean (Object _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KBoolean _ SNumber SBoolean (Primitive (Boolean _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KBoolean _ SNumber SBoolean (Primitive (Text _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KNumber _ SNumber SNumber Null _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KNumber _ SNumber SNumber (Array _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KNumber _ SNumber SNumber (Object _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KNumber _ SNumber SNumber (Primitive (Boolean _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KNumber _ SNumber SNumber (Primitive (Text _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KText _ SNumber SText Null _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KText _ SNumber SText (Array _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KText _ SNumber SText (Object _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KText _ SNumber SText (Primitive (Boolean _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KNumber KText _ SNumber SText (Primitive (Text _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KBoolean _ SText SBoolean Null _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KBoolean _ SText SBoolean (Array _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KBoolean _ SText SBoolean (Object _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KBoolean _ SText SBoolean (Primitive (Boolean _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KBoolean _ SText SBoolean (Primitive (Number _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KNumber _ SText SNumber Null _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KNumber _ SText SNumber (Array _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KNumber _ SText SNumber (Object _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KNumber _ SText SNumber (Primitive (Boolean _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KNumber _ SText SNumber (Primitive (Number _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KText _ SText SText Null _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KText _ SText SText (Array _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KText _ SText SText (Object _) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KText _ SText SText (Primitive (Boolean _)) _ _ _ prf2 | True = absurd prf2
+    convert_preserves_validity KText KText _ SText SText (Primitive (Number _)) _ _ _ prf2 | True = absurd prf2
+
+    convert_preserves_validity KBoolean KBoolean m SBoolean SBoolean (Primitive (Boolean va)) v' prf prf1 prf2 | True with (convert_prim (Boolean va) m) proof prf4
+        convert_preserves_validity KBoolean KBoolean _ SBoolean SBoolean (Primitive (Boolean _)) _ _ prf1 _ | True | Nothing =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KBoolean KBoolean _ SBoolean SBoolean (Primitive (Boolean _)) _ _ prf1 _ | True | (Just (Boolean _)) =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KBoolean KBoolean m SBoolean SBoolean (Primitive (Boolean va)) _ _ _ _ | True | (Just (Number vb)) =
+            absurd $ convert_prim_kind KBoolean KBoolean (Boolean va) (Number vb) m prf3 Refl prf4
+        convert_preserves_validity KBoolean KBoolean m SBoolean SBoolean (Primitive (Boolean va)) _ _ _ _ | True | (Just (Text vb)) =
+            absurd $ convert_prim_kind KBoolean KBoolean (Boolean va) (Text vb) m prf3 Refl prf4
+    convert_preserves_validity KBoolean KNumber m SBoolean SNumber (Primitive (Boolean va)) v' prf prf1 prf2 | True with (convert_prim (Boolean va) m) proof prf4
+        convert_preserves_validity KBoolean KNumber _ SBoolean SNumber (Primitive (Boolean _)) _ _ prf1 _ | True | Nothing =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KBoolean KNumber _ SBoolean SNumber (Primitive (Boolean _)) _ _ prf1 _ | True | (Just (Number _)) =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KBoolean KNumber m SBoolean SNumber (Primitive (Boolean va)) _ _ _ _ | True | (Just (Boolean vb)) =
+            absurd $ convert_prim_kind KBoolean KNumber (Boolean va) (Boolean vb) m prf3 Refl prf4
+        convert_preserves_validity KBoolean KNumber m SBoolean SNumber (Primitive (Boolean va)) _ _ _ _ | True | (Just (Text vb)) =
+            absurd $ convert_prim_kind KBoolean KNumber (Boolean va) (Text vb) m prf3 Refl prf4
+    convert_preserves_validity KBoolean KText m SBoolean SText (Primitive (Boolean va)) v' prf prf1 prf2 | True with (convert_prim (Boolean va) m) proof prf4
+        convert_preserves_validity KBoolean KText _ SBoolean SText (Primitive (Boolean _)) _ _ prf1 _ | True | Nothing =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KBoolean KText _ SBoolean SText (Primitive (Boolean _)) _ _ prf1 _ | True | (Just (Text _)) =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KBoolean KText m SBoolean SText (Primitive (Boolean va)) _ _ _ _ | True | (Just (Boolean vb)) =
+            absurd $ convert_prim_kind KBoolean KText (Boolean va) (Boolean vb) m prf3 Refl prf4
+        convert_preserves_validity KBoolean KText m SBoolean SText (Primitive (Boolean va)) _ _ _ _ | True | (Just (Number vb)) =
+            absurd $ convert_prim_kind KBoolean KText (Boolean va) (Number vb) m prf3 Refl prf4
+    convert_preserves_validity KNumber KBoolean m SNumber SBoolean (Primitive (Number va)) v' prf prf1 prf2 | True with (convert_prim (Number va) m) proof prf4
+        convert_preserves_validity KNumber KBoolean _ SNumber SBoolean (Primitive (Number _)) _ _ prf1 _ | True | Nothing =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KNumber KBoolean _ SNumber SBoolean (Primitive (Number _)) _ _ prf1 _ | True | (Just (Boolean _)) =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KNumber KBoolean m SNumber SBoolean (Primitive (Number va)) _ _ _ _ | True | (Just (Number vb)) =
+            absurd $ convert_prim_kind KNumber KBoolean (Number va) (Number vb) m prf3 Refl prf4
+        convert_preserves_validity KNumber KBoolean m SNumber SBoolean (Primitive (Number va)) _ _ _ _ | True | (Just (Text vb)) =
+            absurd $ convert_prim_kind KNumber KBoolean (Number va) (Text vb) m prf3 Refl prf4
+    convert_preserves_validity KNumber KNumber m SNumber SNumber (Primitive (Number va)) v' prf prf1 prf2 | True with (convert_prim (Number va) m) proof prf4
+        convert_preserves_validity KNumber KNumber _ SNumber SNumber (Primitive (Number _)) _ _ prf1 _ | True | Nothing =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KNumber KNumber _ SNumber SNumber (Primitive (Number _)) _ _ prf1 _ | True | (Just (Number _)) =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KNumber KNumber m SNumber SNumber (Primitive (Number va)) _ _ _ _ | True | (Just (Boolean vb)) =
+            absurd $ convert_prim_kind KNumber KNumber (Number va) (Boolean vb) m prf3 Refl prf4
+        convert_preserves_validity KNumber KNumber m SNumber SNumber (Primitive (Number va)) _ _ _ _ | True | (Just (Text vb)) =
+            absurd $ convert_prim_kind KNumber KNumber (Number va) (Text vb) m prf3 Refl prf4
+    convert_preserves_validity KNumber KText m SNumber SText (Primitive (Number va)) v' prf prf1 prf2 | True with (convert_prim (Number va) m) proof prf4
+        convert_preserves_validity KNumber KText _ SNumber SText (Primitive (Number _)) _ _ prf1 _ | True | Nothing =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KNumber KText _ SNumber SText (Primitive (Number _)) _ _ prf1 _ | True | (Just (Text _)) =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KNumber KText m SNumber SText (Primitive (Number va)) _ _ _ _ | True | (Just (Boolean vb)) =
+            absurd $ convert_prim_kind KNumber KText (Number va) (Boolean vb) m prf3 Refl prf4
+        convert_preserves_validity KNumber KText m SNumber SText (Primitive (Number va)) _ _ _ _ | True | (Just (Number vb)) =
+            absurd $ convert_prim_kind KNumber KText (Number va) (Number vb) m prf3 Refl prf4
+    convert_preserves_validity KText KBoolean m SText SBoolean (Primitive (Text va)) v' prf prf1 prf2 | True with (convert_prim (Text va) m) proof prf4
+        convert_preserves_validity KText KBoolean _ SText SBoolean (Primitive (Text _)) _ _ prf1 _ | True | Nothing =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KText KBoolean _ SText SBoolean (Primitive (Text _)) _ _ prf1 _ | True | (Just (Boolean _)) =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KText KBoolean m SText SBoolean (Primitive (Text va)) _ _ _ _ | True | (Just (Number vb)) =
+            absurd $ convert_prim_kind KText KBoolean (Text va) (Number vb) m prf3 Refl prf4
+        convert_preserves_validity KText KBoolean m SText SBoolean (Primitive (Text va)) _ _ _ _ | True | (Just (Text vb)) =
+            absurd $ convert_prim_kind KText KBoolean (Text va) (Text vb) m prf3 Refl prf4
+    convert_preserves_validity KText KNumber m SText SNumber (Primitive (Text va)) v' prf prf1 prf2 | True with (convert_prim (Text va) m) proof prf4
+        convert_preserves_validity KText KNumber _ SText SNumber (Primitive (Text _)) _ _ prf1 _ | True | Nothing =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KText KNumber _ SText SNumber (Primitive (Text _)) _ _ prf1 _ | True | (Just (Number _)) =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KText KNumber m SText SNumber (Primitive (Text va)) _ _ _ _ | True | (Just (Boolean vb)) =
+            absurd $ convert_prim_kind KText KNumber (Text va) (Boolean vb) m prf3 Refl prf4
+        convert_preserves_validity KText KNumber m SText SNumber (Primitive (Text va)) _ _ _ _ | True | (Just (Text vb)) =
+            absurd $ convert_prim_kind KText KNumber (Text va) (Text vb) m prf3 Refl prf4
+    convert_preserves_validity KText KText m SText SText (Primitive (Text va)) v' prf prf1 prf2 | True with (convert_prim (Text va) m) proof prf4
+        convert_preserves_validity KText KText _ SText SText (Primitive (Text _)) _ _ prf1 _ | True | Nothing =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KText KText _ SText SText (Primitive (Text _)) _ _ prf1 _ | True | (Just (Text _)) =
+            rewrite sym prf1 in Refl
+        convert_preserves_validity KText KText m SText SText (Primitive (Text va)) _ _ _ _ | True | (Just (Boolean vb)) =
+            absurd $ convert_prim_kind KText KText (Text va) (Boolean vb) m prf3 Refl prf4
+        convert_preserves_validity KText KText m SText SText (Primitive (Text va)) _ _ _ _ | True | (Just (Number vb)) =
+            absurd $ convert_prim_kind KText KText (Text va) (Number vb) m prf3 Refl prf4
 
 
 ||| Transforming a valid value must result in a valid value

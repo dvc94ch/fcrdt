@@ -55,24 +55,6 @@ beq_prim_kind KText KText prf = Refl
 
 
 public export
-all_properties_exist_after_insert : (sm : Map Schema) -> (vm : Map Value) ->
-    (k : Key) -> (s : Schema) -> (v : Value) ->
-    all_properties_exist sm vm = True -> all_properties_exist (insert k s sm) (insert k v vm) = True
-all_properties_exist_after_insert sm vm k s v prf with (containsP k vm)
-    all_properties_exist_after_insert Empty Empty k s v prf | (ReflectT x prf1) = absurd $ prf1
-    all_properties_exist_after_insert Empty (Entry k1 y m p) k s v prf | (ReflectT x prf1) = ?h3_6
-    all_properties_exist_after_insert (Entry k1 y m p) vm k s v prf | (ReflectT x prf1) = ?h3_4
-    all_properties_exist_after_insert sm vm k s v prf | (ReflectF f prf1) = ?h3_2
-
-public export
-all_properties_exist_after_remove : (sm : Map Schema) -> (vm : Map Value) -> (k : Key) ->
-    all_properties_exist sm vm = True -> all_properties_exist (remove k sm) (remove k vm) = True
-
-public export
-not_all_properties_exist : (sm : Map Schema) -> (vm : Map Value) ->
-    (k : Key) -> get k sm = Just _ -> get k vm = Nothing -> all_properties_exist sm vm = False
-
-public export
 validate_properties_after_insert : (vm : Map Value) -> (sm : Map Schema) ->
     (k : Key) -> (v : Value) -> (s : Schema) -> validate s v = True ->
     validate_properties vm sm = True -> validate_properties (insert k v vm) (insert k s sm) = True
@@ -96,6 +78,7 @@ public export
 still_invalid : (vm : Map Value) -> (sm : Map Schema) ->
     (k : Key) ->  get k vm = Just kvm -> get k sm = Just ksm ->
     validate ksm kvm = False -> validate_properties vm sm = False
+
 
 public export
 flip_map_twice : (m : List (PrimitiveValue, PrimitiveValue)) -> flip_map (flip_map m) = m

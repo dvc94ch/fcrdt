@@ -92,7 +92,7 @@ destroy_reversible KObject SBoolean _ Refl impossible
 destroy_reversible KObject SNumber _ Refl impossible
 destroy_reversible KObject SText _ Refl impossible
 destroy_reversible KObject (SArray _ _) _ Refl impossible
-destroy_reversible KObject (SObject (Entry _ _ _ _)) _ Refl impossible
+destroy_reversible KObject (SObject (Update _ _ _)) _ Refl impossible
 destroy_reversible KObject (SObject Empty) s' prf =
     rewrite sym $ justInjective prf in Refl
 
@@ -152,7 +152,8 @@ rename_property_reversible k k' (SObject m) s' prf with (get k m, get k' m) proo
             not_a_eq_b = get_neq $ tuple_eq prf1 uninhabited
             not_b_eq_a = \p => not_a_eq_b $ sym p in
         rewrite update_permute m k' k (Just x) Nothing not_b_eq_a in
-        rewrite update_eq (update k' (Just x) m) k Nothing in
+        rewrite ne_key k k' not_a_eq_b in
+        rewrite beq_key k in
         rewrite update_permute m k k' Nothing (Just x) not_a_eq_b in
         rewrite update_shadow (update k Nothing m) k' (Just x) Nothing in
         rewrite update_permute m k' k Nothing Nothing not_b_eq_a in
@@ -183,11 +184,11 @@ hoist_property_reversible h t (SObject m) s' prf with (get h m, get t m) proof p
             let neq_ht = get_neq (tuple_eq prf1 uninhabited)
                 neq_th = \p => neq_ht (sym p) in
             rewrite update_permute m h t (Just (SObject (update t Nothing hm))) (Just x) neq_ht in
-            rewrite update_eq (update h (Just (SObject (update t Nothing hm))) m) t (Just x) in
-            rewrite update_permute m t h (Just x) (Just (SObject (update t Nothing hm))) neq_th in
-            rewrite update_eq (update t (Just x) m) h (Just (SObject (update t Nothing hm))) in
             rewrite ne_key t h neq_th in
-            rewrite update_eq hm t Nothing in
+            rewrite beq_key t in
+            rewrite beq_key h in
+            rewrite beq_key t in
+            rewrite update_permute m t h (Just x) (Just (SObject (update t Nothing hm))) neq_th in
             rewrite update_shadow hm t Nothing (Just x) in
             rewrite update_permute (update t (Just x) m) t h Nothing (Just (SObject (update t Nothing hm))) neq_th in
             rewrite update_shadow m t (Just x) Nothing in
@@ -223,8 +224,9 @@ plunge_property_reversible h t (SObject m) s' prf with (get t m, get h m, t == h
                 neq_ht = \p => neq_th $ sym p in
             rewrite update_eq (update t Nothing m) h (Just (SObject (update t (Just tv) hm))) in
             rewrite update_permute m h t (Just (SObject (update t (Just tv) hm))) Nothing neq_ht in
-            rewrite update_eq (update h (Just (SObject (update t (Just tv) hm))) m) t Nothing in
-            rewrite update_eq hm t (Just tv) in
+            rewrite ne_key t h neq_th in
+            rewrite beq_key t in
+            rewrite beq_key t in
             rewrite update_shadow hm t (Just tv) Nothing in
             rewrite update_shadow (update h (Just (SObject (update t (Just tv) hm))) m) t Nothing (Just tv) in
             rewrite update_permute m t h (Just tv) (Just (SObject (update t (Just tv) hm))) neq_th in

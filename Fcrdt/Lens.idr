@@ -113,19 +113,16 @@ sarray : Schema -> Maybe Schema
 sarray (SArray _ s) = Just s
 sarray _ = Nothing
 
-all_properties_exist : Map Schema -> Map Value -> Bool
-all_properties_exist Empty _ = True
-all_properties_exist (Entry k v m _) vmap with (contains k vmap)
-    all_properties_exist (Entry k _ m _) vmap | False = False
-    all_properties_exist (Entry k _ m _) vmap | True = all_properties_exist m vmap
-
 mutual
+    validate_properties' : List Key -> Map Value -> Map Schema -> Bool
+    validate_properties' [] _ _ = True
+    validate_properties' (k :: ks) vm sm with (get k vm, get k sm)
+        validate_properties' (k :: ks) vm sm | (Just v, Just s) =
+             assert_total (validate s v) && validate_properties' ks vm sm
+        validate_properties' (k :: ks) vm sm | (_, _) = False
+
     validate_properties : Map Value -> Map Schema -> Bool
-    validate_properties Empty _ = True
-    validate_properties (Entry k v m _) smap with (get k smap)
-        validate_properties (Entry _ _ _ _) _ | Nothing = False
-        validate_properties (Entry k v m _) smap | Just schema =
-             assert_total (validate schema v) && validate_properties m smap
+    validate_properties vm sm = validate_properties' (keys vm) vm sm
 
     validate : Schema -> Value -> Bool
     validate SNull Null = True
@@ -136,12 +133,12 @@ mutual
     validate SNumber _ = False
     validate SText (Primitive (Text _)) = True
     validate SText _ = False
-    validate (SArray allowEmpty schema) (Array []) = allowEmpty
-    validate (SArray _ schema) (Array (x :: xs)) =
-        assert_total (validate schema x) && assert_total (validate (SArray True schema) (Array xs))
+    validate (SArray e _) (Array []) = e
+    validate (SArray _ s) (Array (x :: xs)) =
+        assert_total (validate s) x && assert_total (validate (SArray True s) (Array xs))
     validate (SArray _ _) _ = False
-    validate (SObject smap) (Object vmap) =
-        all_properties_exist smap vmap && validate_properties vmap smap
+    validate (SObject sm) (Object vm) =
+        half_keys_eq sm vm && validate_properties vm sm
     validate (SObject _) _ = False
 
 
@@ -243,14 +240,14 @@ transform_schema (AddProperty key) (SObject smap) =
 transform_schema (AddProperty _) _ = Nothing
 transform_schema (RemoveProperty key) (SObject smap) =
     case get key smap of
-        Just SNull => Just (SObject (delete key smap))
+        Just SNull => Just (SObject (remove key smap))
         _ => Nothing
 transform_schema (RemoveProperty _) _ = Nothing
 transform_schema (RenameProperty x y) (SObject smap) =
     case (get x smap, get y smap) of
         (Just p, Nothing) =>
             let
-                smap = (delete x smap)
+                smap = (remove x smap)
                 smap = (insert y p smap)
             in Just (SObject smap)
         _ => Nothing
@@ -261,7 +258,7 @@ transform_schema (HoistProperty h t) (SObject m) =
             case get t hm of
                 Just p =>
                     let
-                        hm = delete t hm
+                        hm = remove t hm
                         m = insert t p m
                         m = insert h (SObject hm) m
                      in Just (SObject m)
@@ -275,7 +272,7 @@ transform_schema (PlungeProperty h t) (SObject m) =
                 Nothing =>
                     let
                         hm = insert t p hm
-                        m = delete t m
+                        m = remove t m
                         m = insert h (SObject hm) m
                     in Just (SObject m)
                 _ => Nothing

@@ -333,3 +333,43 @@ update_permute (MkMap s f) k1 k2 v1 v2 prf =
         s = s_update_permute s k1 k2 (isJust v1) (isJust v2) prf
         t = t_update_permute f k1 k2 v1 v2 prf
     in rewrite s in rewrite t in Refl
+
+
+public export
+containsP : (k : Key) -> (m : Map a) -> Reflect (InMap k m) (contains k m)
+containsP k' Empty = ReflectF id Refl
+containsP k' (Entry k _ m p) with (beq_keyP k k')
+    containsP k' (Entry k _ m p) | (ReflectT x prf) =
+        rewrite prf in ReflectT (Left (sym x)) Refl
+    containsP k' (Entry k _ m p) | (ReflectF f prf) with (containsP k' m)
+        containsP k' (Entry k _ m p) | ReflectF f prf | (ReflectT x prf1) =
+            rewrite prf in rewrite prf1 in ReflectT (Right x) Refl
+        containsP k' (Entry k _ m p) | ReflectF f prf | (ReflectF g prf1) =
+            rewrite prf in rewrite prf1 in ReflectF (
+                \e => case e of
+                    Left a => f (sym a)
+                    Right b => g b) Refl
+
+public export
+neg_not_in : {auto m : Map a} -> {k : Key} -> Not (NotInMap k m) -> InMap k m
+{-neg_not_in Empty _ f = f IsEmpty
+neg_not_in (Entry k _ m p) k' f with (beq_keyP k' k)
+    neg_not_in (Entry k _ m p) k' f | (ReflectT y prf) = Left y
+    neg_not_in (Entry k _ m p) k' f | (ReflectF g prf) with (containsP k' m)
+        neg_not_in (Entry k _ m p) k' f | (ReflectF g prf) | (ReflectT y prf1) = Right y
+        neg_not_in (Entry k _ m p) k' f | (ReflectF g prf) | (ReflectF f1 prf1) =
+            let h = \x => f (HasEntry g x)
+                ind = neg_not_in m k' h in Right ind-}
+
+public export
+neg_in : {auto m : Map a} -> {auto k : Key} -> Not (InMap k m) -> NotInMap k m
+{-neg_in Empty _ _ = IsEmpty
+neg_in (Entry k _ m p) k' f with (containsP k' m)
+    neg_in (Entry k _ m p) k' f | (ReflectT y prf) = void (f (Right y))
+    neg_in (Entry k _ m p) k' f | (ReflectF g prf) with (beq_keyP k' k)
+        neg_in (Entry k _ m p) k' f | (ReflectF g prf) | (ReflectT y prf1) = void (f (Left y))
+        neg_in (Entry k _ m p) k' f | (ReflectF g prf) | (ReflectF f1 prf1) =
+            let ind = neg_in m k' (\x => f (Right x)) in
+                case ind of
+                    IsEmpty => HasEntry f1 ind
+                    HasEntry a b => HasEntry f1 ind-}

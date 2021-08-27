@@ -327,6 +327,8 @@ not_half_keys_eq : (am : Map a) -> (bm : Map b) -> (k : Key) ->
 
 public export
 get_just_contains : get k m = Just _ -> contains k m = True
+get_just_contains prf = rewrite prf in Refl
 
 public export
 get_nothing_contains : get k m = Nothing -> contains k m = False
+get_nothing_contains prf = rewrite prf in Refl

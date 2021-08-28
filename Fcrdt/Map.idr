@@ -57,11 +57,9 @@ inv_bool True False _ = Refl
 inv_bool True True Refl impossible
 
 public export
-and_split : (a : Bool) -> (b : Lazy Bool) -> (a && b = True) -> (a = True, b = True)
-and_split False (Delay False) Refl impossible
-and_split False (Delay True) Refl impossible
-and_split True (Delay False) Refl impossible
-and_split True (Delay True) _ = (Refl, Refl)
+and_split : (a : Bool) -> (b : Lazy Bool) -> a && b = True -> (a = True, b = True)
+and_split False (Delay b) prf = absurd prf
+and_split True (Delay b) prf = (Refl, prf)
 
 public export
 and_join : (a = True, b = True) -> a && b = True
@@ -183,6 +181,14 @@ data Map : Type -> Type where
 %name Map m, m1, m2
 
 public export
+Uninhabited (Empty = Update k v m) where
+    uninhabited Refl impossible
+
+public export
+Uninhabited (Update k v m = Empty) where
+    uninhabited Refl impossible
+
+public export
 empty : Map a
 empty = Empty
 
@@ -218,7 +224,7 @@ Eq a => Eq (Map a) where
 
 public export
 keys : Map a -> List Key
-keys m = filter (\k => contains k m) $ all_keys m where
+keys m = filter (\k => contains k m) (all_keys m) where
     all_keys : Map a  -> List Key
     all_keys Empty = []
     all_keys (Update k _ m) = k :: all_keys m
@@ -236,6 +242,24 @@ public export
 keys_eq : Map a -> Map b -> Bool
 keys_eq m1 m2 = half_keys_eq m1 m2 && half_keys_eq m2 m1
 
+
+-- Contains theorems
+public export
+get_just_contains : get k m = Just _ -> contains k m = True
+get_just_contains prf = rewrite prf in Refl
+
+public export
+get_nothing_contains : get k m = Nothing -> contains k m = False
+get_nothing_contains prf = rewrite prf in Refl
+
+
+-- Get theorems
+public export
+get_neq : Not (get a m = get b m) -> Not (a = b)
+get_neq f prf = f (cong (\k => get k m) prf)
+
+
+-- Update theorems
 public export
 map_extensionality : (m1, m2 : Map a) -> ((k : Key) -> get k m1 = get k m2) -> m1 = m2
 map_extensionality = \m1, m2, f => believe_me (Refl {x = MkUnit})
@@ -279,32 +303,71 @@ update_permute m k1 k2 v1 v2 prf = map_extensionality
         (ReflectF _ prf1, ReflectF _ prf2) =>
             rewrite prf1 in rewrite prf2 in rewrite prf1 in Refl
 
-public export
-Uninhabited (Empty = Update k v m) where
-    uninhabited Refl impossible
 
-public export
-Uninhabited (Update k v m = Empty) where
-    uninhabited Refl impossible
+-- Half keys equality theorems
+InMap : (k : Key) -> (m : Map a) -> Type
+InMap k Empty = Void
+InMap k (Update k' v' m') = Either (k = k', IsJust v') (Not (k = k'), InMap k m')
 
-public export
-get_neq : Not (get a m = get b m) -> Not (a = b)
-get_neq f prf = f (cong (\k => get k m) prf)
+containsP : (k : Key) -> (m : Map a) -> Reflect (InMap k m) (contains k m)
+containsP k Empty = ReflectF id Refl
+containsP k (Update k' v' m') with (beq_keyP k k')
+    containsP k (Update k' Nothing m') | ReflectT keq prf =
+        rewrite prf in ReflectF (\f => case f of
+            Left (_, f) => absurd f
+            Right (f, _) => f keq) Refl
+    containsP k (Update k' (Just v) m') | ReflectT keq prf =
+        rewrite prf in ReflectT (Left (keq, ItIsJust)) Refl
+    containsP k (Update k' v' m') | ReflectF f prf with (containsP k m')
+        containsP k (Update k' v' m') | ReflectF f prf | ReflectT t prf1 =
+            rewrite prf in ReflectT (Right (f, t)) prf1
+        containsP k (Update k' v' m') | ReflectF f prf | ReflectF f' prf1 =
+            rewrite prf in ReflectF (\p => case p of
+                Left (p, _) => f p
+                Right (_, p) => f' p) prf1
 
-{-half_keys_eq_insert_right : (am : Map a) -> (bm : Map b) -> (k : Key) ->
-    InMap k am -> half_keys_eq am bm = True -> half_keys_eq am (insert k _ bm) = True
+insert_contains : (k : Key) -> (v : a) -> (m : Map a) -> contains k (insert k v m) = True
+insert_contains k v m = rewrite beq_key k in Refl
 
-half_keys_eq_insert_left : (am : Map a) -> (bm : Map b) -> (k : Key) ->
-    half_keys_eq am bm = True -> half_keys_eq (insert k _ am) bm = True-}
+remove_contains : (k : Key) -> (m : Map a) -> contains k (remove k m) = False
+remove_contains k m = rewrite beq_key k in Refl
+
+contains_all_insert : (ks : List Key) -> (m : Map a) -> (k : Key) -> (v : a) ->
+    contains_all ks m = True -> contains_all ks (insert k v m) = True
+contains_all_insert [] _ _ _ _ = Refl
+contains_all_insert (k :: ks) m k' v prf with (k == k')
+    contains_all_insert (k :: ks) m k' v prf | False =
+        let split = and_split (contains k m) (contains_all ks m) prf
+            ind = contains_all_insert ks m k' v (snd split)
+        in rewrite ind in rewrite fst split in Refl
+    contains_all_insert (k :: ks) m k' v prf | True =
+        let split = and_split (contains k m) (contains_all ks m) prf
+            ind = contains_all_insert ks m k' v (snd split)
+        in rewrite ind in Refl
+
+contains_all_key : (ks : List Key) -> (m : Map a) -> (k : Key) -> contains k m = True ->
+    contains_all ks m = True -> contains_all (k :: ks) m = True
+contains_all_key ks m k prf prf1 = rewrite prf in rewrite prf1 in Refl
+
+contains_all_key_insert : (ks : List Key) -> (m : Map a) -> (k : Key) -> (v : a) ->
+    contains_all ks m = True -> contains_all (k :: ks) (insert k v m) = True
+contains_all_key_insert ks m k v prf =
+    let p = contains_all_insert ks m k v prf
+        p' = contains_all_key ks (insert k v m) k (insert_contains k v m) p
+    in p'
+
+-- actually not true
+keys_insert : (ks : List Key) -> (m : Map a) -> (k : Key) -> (v : a) ->
+    keys m = ks -> keys (insert k v m) = k :: ks
 
 public export
 half_keys_eq_insert : (am : Map a) -> (bm : Map b) ->
     (k : Key) -> (av : a) -> (bv : b) ->
     half_keys_eq am bm = True -> half_keys_eq (insert k av am) (insert k bv bm) = True
-{-half_keys_eq_insert am bm k av bv prf =
-    let left = half_keys_eq_insert_left am bm k prf
-        right = half_keys_eq_insert_right (insert k av am) bm k (insert_contains k am) left
-    in right-}
+half_keys_eq_insert am bm k av bv prf =
+    let ki = keys_insert (keys am) am k av Refl
+        p = contains_all_key_insert (keys am) bm k bv prf
+    in rewrite ki in p
 
 {-half_keys_eq_remove_right : (am : Map a) -> (bm : Map b) -> (k : Key) ->
     NotInMap k am -> half_keys_eq am bm = True -> half_keys_eq am (remove k bm) = True
@@ -324,11 +387,3 @@ half_keys_eq_remove : (am : Map a) -> (bm : Map b) -> (k : Key) ->
 public export
 not_half_keys_eq : (am : Map a) -> (bm : Map b) -> (k : Key) ->
     contains k am = True -> contains k bm = False -> half_keys_eq am bm = False
-
-public export
-get_just_contains : get k m = Just _ -> contains k m = True
-get_just_contains prf = rewrite prf in Refl
-
-public export
-get_nothing_contains : get k m = Nothing -> contains k m = False
-get_nothing_contains prf = rewrite prf in Refl

@@ -5,6 +5,7 @@ sourcedir = "."
 depends = base, contrib
 
 modules =
+    Fcrdt.Crdt,
     Fcrdt.Lens,
     Fcrdt.Lens.Reversible,
     Fcrdt.Lens.Uninhabited,

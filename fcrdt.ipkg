@@ -5,15 +5,6 @@ sourcedir = "."
 depends = base, contrib
 
 modules =
-    Fcrdt.Crdt,
-    Fcrdt.Lens,
-    Fcrdt.Lens.Reversible,
-    Fcrdt.Lens.Uninhabited,
-    Fcrdt.Lens.Util,
-    Fcrdt.Lens.Valid,
-    Fcrdt.Main,
-    Fcrdt.Map
-
-main = Fcrdt.Main
-
-executable = fcrdt
+    Fcrdt.Map,
+    Fcrdt.Delta,
+    Fcrdt.Register

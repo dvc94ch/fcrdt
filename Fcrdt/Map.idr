@@ -3,6 +3,7 @@ module Fcrdt.Map
 import Data.List
 import Data.Maybe
 import Data.Nat
+import Decidable.Equality
 
 %default total
 
@@ -174,9 +175,9 @@ beq_keyP (MkKey k) (MkKey j) with (beq_natP k j)
     beq_keyP (MkKey k) (MkKey j) | (ReflectF f prf) = ReflectF (\p => f (cong key_to_nat p)) prf
 
 public export
-data Map : Type -> Type where
-    Empty : Map a
-    Update : Key -> Maybe a -> Map a -> Map a
+data Map : (k : Type) -> (v : Type) -> Type where
+    Empty : Map k v
+    Update : k -> Maybe v -> Map k v -> Map k v
 
 %name Map m, m1, m2
 
@@ -189,70 +190,80 @@ Uninhabited (Update k v m = Empty) where
     uninhabited Refl impossible
 
 public export
-empty : Map a
+Functor (Map k) where
+    map f Empty = Empty
+    map f (Update k v m) = Update k (map f v) (map f m)
+
+public export
+empty : Map k v
 empty = Empty
 
 public export
-update : Key -> Maybe a -> Map a -> Map a
+update : k -> Maybe v -> Map k v -> Map k v
 update k v m = Update k v m
 
 public export
-insert : Key -> a -> Map a -> Map a
+insert : k -> v -> Map k v -> Map k v
 insert k v m = update k (Just v) m
 
 public export
-remove : Key -> Map a -> Map a
+remove : k -> Map k v -> Map k v
 remove k m = update k Nothing m
 
 public export
-get : Key -> Map a -> Maybe a
+get : Eq k => k -> Map k v -> Maybe v
 get k Empty = Nothing
 get k (Update k' v' m') = if k == k' then v' else get k m'
 
 public export
-contains : Key -> Map a -> Bool
+contains : Eq k => k -> Map k v -> Bool
 contains k m = isJust $ get k m
 
 public export
-half_eq : Eq a => Map a -> Map a -> Bool
+half_eq : Eq k => Eq v => Map k v -> Map k v -> Bool
 half_eq Empty _ = True
 half_eq (Update k v m') m2 = get k m2 == v
 
 public export
-Eq a => Eq (Map a) where
+Eq k => Eq v  => Eq (Map k v) where
     x == y = half_eq x y && half_eq y x
 
 public export
-keys : Map a -> List Key
+keys : Eq k => Map k v -> List k
 keys m = filter (\k => contains k m) (all_keys m) where
-    all_keys : Map a  -> List Key
+    all_keys : Map k a  -> List k
     all_keys Empty = []
     all_keys (Update k _ m) = k :: all_keys m
 
 public export
-contains_all : List Key -> Map a -> Bool
+contains_all : Eq k => List k -> Map k a -> Bool
 contains_all [] m = True
 contains_all (x :: xs) m = contains x m && contains_all xs m
 
 public export
-half_keys_eq : Map a -> Map b -> Bool
+remove_all : Eq k => List k -> Map k a -> Map k a
+remove_all [] m = m
+remove_all (x :: xs) m = remove x $ remove_all xs m
+
+public export
+half_keys_eq : Eq k => Map k a -> Map k b -> Bool
 half_keys_eq m1 m2 = contains_all (keys m1) m2
 
 public export
-keys_eq : Map a -> Map b -> Bool
+keys_eq : Eq k => Map k a -> Map k b -> Bool
 keys_eq m1 m2 = half_keys_eq m1 m2 && half_keys_eq m2 m1
 
 
 -- Contains theorems
 public export
-get_just_contains : get k m = Just _ -> contains k m = True
+get_just_contains : Eq k' => {m : Map k' v} -> get k m = Just _ -> contains k m = True
 get_just_contains prf = rewrite prf in Refl
 
 public export
-get_nothing_contains : get k m = Nothing -> contains k m = False
+get_nothing_contains : Eq k' => {m : Map k' v} -> get k m = Nothing -> contains k m = False
 get_nothing_contains prf = rewrite prf in Refl
 
-
+{-
 -- Get theorems
 public export
 get_neq : Not (get a m = get b m) -> Not (a = b)
@@ -386,4 +397,4 @@ half_keys_eq_remove : (am : Map a) -> (bm : Map b) -> (k : Key) ->
 
 public export
 not_half_keys_eq : (am : Map a) -> (bm : Map b) -> (k : Key) ->
-    contains k am = True -> contains k bm = False -> half_keys_eq am bm = False
+    contains k am = True -> contains k bm = False -> half_keys_eq am bm = False-}

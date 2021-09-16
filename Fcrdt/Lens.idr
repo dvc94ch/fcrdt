@@ -6,6 +6,7 @@ import Fcrdt.Map
 
 %default total
 
+public export
 data PrimitiveValue =
       Boolean Bool
     | Number Nat
@@ -31,7 +32,7 @@ text : (v : PrimitiveValue) -> Maybe (List Char)
 text (Text t) = Just t
 text _ = Nothing
 
-
+public export
 data PrimitiveKind =
       KBoolean
     | KNumber
@@ -45,17 +46,30 @@ Eq PrimitiveKind where
     KText == KText = True
     _ == _ = False
 
+public export
 prim_kind_of : PrimitiveValue -> PrimitiveKind
 prim_kind_of (Boolean x) = KBoolean
 prim_kind_of (Number x) = KNumber
 prim_kind_of (Text x) = KText
 
+public export
+prim_kind_type : PrimitiveKind -> Type
+prim_kind_type KBoolean = Bool
+prim_kind_type KNumber = Nat
+prim_kind_type KText = List Char
 
+public export
+prim_kind_default : (k : PrimitiveKind) -> prim_kind_type k
+prim_kind_default KBoolean = False
+prim_kind_default KNumber = 0
+prim_kind_default KText = []
+
+public export
 data Value =
       Null
     | Primitive PrimitiveValue
     | Array (List Value)
-    | Object (Map Value)
+    | Object (Map Key Value)
 
 %name Value val, v, v1, v2
 
@@ -74,7 +88,7 @@ array : Value -> Maybe (List Value)
 array (Array xs) = Just xs
 array _ = Nothing
 
-object : Value -> Maybe (Map Value)
+object : Value -> Maybe (Map Key Value)
 object (Object m) = Just m
 object _ = Nothing
 
@@ -94,14 +108,14 @@ Eq Kind where
     KObject == KObject = True
     _ == _ = False
 
-
+public export
 data Schema =
       SNull
     | SBoolean
     | SNumber
     | SText
     | SArray Bool Schema
-    | SObject (Map Schema)
+    | SObject (Map Key Schema)
 
 %name Schema s, s1, s2
 
@@ -114,16 +128,17 @@ sarray (SArray _ s) = Just s
 sarray _ = Nothing
 
 mutual
-    validate_properties' : List Key -> Map Value -> Map Schema -> Bool
+    public export
+    validate_properties' : List Key -> Map Key Value -> Map Key Schema -> Bool
     validate_properties' [] _ _ = True
     validate_properties' (k :: ks) vm sm with (get k vm, get k sm)
         validate_properties' (k :: ks) vm sm | (Just v, Just s) =
              assert_total (validate s v) && validate_properties' ks vm sm
         validate_properties' (k :: ks) vm sm | (_, _) = False
-
-    validate_properties : Map Value -> Map Schema -> Bool
+    validate_properties : Map Key Value -> Map Key Schema -> Bool
     validate_properties vm sm = validate_properties' (keys vm) vm sm
 
+    public export
     validate : Schema -> Value -> Bool
     validate SNull Null = True
     validate SNull _ = False
@@ -141,7 +156,7 @@ mutual
         half_keys_eq sm vm && validate_properties vm sm
     validate (SObject _) _ = False
 
-
+public export
 data Lens =
       Make Kind
     | Destroy Kind
@@ -188,6 +203,7 @@ convert_prim _ [] = Nothing
 convert_prim key ((k, v) :: xs) = if key == k then Just v else convert_prim key xs
 
 
+public export
 reverse_lens : Lens -> Lens
 reverse_lens (Make k) = Destroy k
 reverse_lens (Destroy k) = Make k
@@ -209,6 +225,7 @@ strip_postfix (a::as) (b::bs) =
     else (a::as, b::bs)
 strip_postfix a b = (a, b)
 
+public export
 transform_lenses : List Lens -> List Lens -> List Lens
 transform_lenses a b =
     let
@@ -219,6 +236,7 @@ transform_lenses a b =
         a = map reverse_lens a
     in a ++ b
 
+public export
 transform_schema : Lens -> Schema -> Maybe Schema
 transform_schema (Make (KPrimitive KBoolean)) SNull = Just SBoolean
 transform_schema (Make (KPrimitive KNumber)) SNull = Just SNumber
@@ -306,6 +324,7 @@ transform_schema (Convert a b map) s with (validate_map a b map)
     transform_schema (Convert KText KText _) SText | True = Just SText
     transform_schema (Convert _ _ _) _ | _ = Nothing
 
+public export
 lenses_to_schema : List Lens -> Maybe Schema
 lenses_to_schema [] = Just SNull
 lenses_to_schema (l::ls) =
@@ -313,6 +332,7 @@ lenses_to_schema (l::ls) =
         Just s => transform_schema l s
         Nothing => Nothing
 
+public export
 transform_value : Lens -> Value -> Value
 transform_value (Make KNull) _ = Null
 transform_value (Make (KPrimitive KBoolean)) _ = Primitive (Boolean False)

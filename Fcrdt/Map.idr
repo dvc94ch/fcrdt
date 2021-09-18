@@ -220,6 +220,10 @@ contains : Eq k => k -> Map k v -> Bool
 contains k m = isJust $ get k m
 
 public export
+get_or : Eq k => v -> k -> Map k v -> v
+get_or v k m = fromMaybe v (get k m)
+
+public export
 half_eq : Eq k => Eq v => Map k v -> Map k v -> Bool
 half_eq Empty _ = True
 half_eq (Update k v m') m2 = get k m2 == v
@@ -228,12 +232,31 @@ public export
 Eq k => Eq v  => Eq (Map k v) where
     x == y = half_eq x y && half_eq y x
 
+delete_key : Eq k => k -> List (k, v) -> List (k, v)
+delete_key k [] = []
+delete_key k (x :: xs) = if k == fst x then xs else x :: delete_key k xs
+
+public export
+pairs : Eq k => Map k v  -> List (k, v)
+pairs Empty = []
+pairs (Update k v m) =
+    let m' = delete_key k (pairs m)
+    in case v of
+        Just v => (k, v) :: m'
+        Nothing => m'
+
 public export
 keys : Eq k => Map k v -> List k
-keys m = filter (\k => contains k m) (all_keys m) where
-    all_keys : Map k a  -> List k
-    all_keys Empty = []
-    all_keys (Update k _ m) = k :: all_keys m
+keys m = map fst $ pairs m
+
+public export
+values : Eq k => Map k v -> List v
+values m = map snd $ pairs m
+
+public export
+from_pairs : Eq k => List (k, v) -> Map k v
+from_pairs [] = empty
+from_pairs ((k, v) :: xs) = insert k v (from_pairs xs)
 
 public export
 contains_all : Eq k => List k -> Map k a -> Bool

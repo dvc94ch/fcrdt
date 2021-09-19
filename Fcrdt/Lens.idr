@@ -35,6 +35,7 @@ text _ = Nothing
 public export
 data PrimitiveKind =
       KBoolean
+    | KCounter
     | KNumber
     | KText
 
@@ -42,6 +43,7 @@ data PrimitiveKind =
 
 Eq PrimitiveKind where
     KBoolean == KBoolean = True
+    KCounter == KCounter = True
     KNumber == KNumber = True
     KText == KText = True
     _ == _ = False
@@ -55,12 +57,14 @@ prim_kind_of (Text x) = KText
 public export
 prim_kind_type : PrimitiveKind -> Type
 prim_kind_type KBoolean = Bool
+prim_kind_type KCounter = Nat
 prim_kind_type KNumber = Nat
 prim_kind_type KText = List Char
 
 public export
 prim_kind_default : (k : PrimitiveKind) -> prim_kind_type k
 prim_kind_default KBoolean = False
+prim_kind_default KCounter = 0
 prim_kind_default KNumber = 0
 prim_kind_default KText = []
 
@@ -92,7 +96,7 @@ object : Value -> Maybe (Map Key Value)
 object (Object m) = Just m
 object _ = Nothing
 
-
+public export
 data Kind =
       KNull
     | KPrimitive PrimitiveKind
@@ -112,6 +116,7 @@ public export
 data Schema =
       SNull
     | SBoolean
+    | SCounter
     | SNumber
     | SText
     | SArray Bool Schema
@@ -141,20 +146,15 @@ mutual
     public export
     validate : Schema -> Value -> Bool
     validate SNull Null = True
-    validate SNull _ = False
     validate SBoolean (Primitive (Boolean _)) = True
-    validate SBoolean _ = False
     validate SNumber (Primitive (Number _)) = True
-    validate SNumber _ = False
     validate SText (Primitive (Text _)) = True
-    validate SText _ = False
     validate (SArray e _) (Array []) = e
     validate (SArray _ s) (Array (x :: xs)) =
         assert_total (validate s) x && assert_total (validate (SArray True s) (Array xs))
-    validate (SArray _ _) _ = False
     validate (SObject sm) (Object vm) =
         half_keys_eq sm vm && validate_properties vm sm
-    validate (SObject _) _ = False
+    validate _ _ = False
 
 public export
 data Lens =
@@ -336,6 +336,7 @@ public export
 transform_value : Lens -> Value -> Value
 transform_value (Make KNull) _ = Null
 transform_value (Make (KPrimitive KBoolean)) _ = Primitive (Boolean False)
+transform_value (Make (KPrimitive KCounter)) _ = Primitive (Number 0)
 transform_value (Make (KPrimitive KNumber)) _ = Primitive (Number 0)
 transform_value (Make (KPrimitive KText)) _ = Primitive (Text [])
 transform_value (Make KArray) _ = Array []
@@ -378,6 +379,7 @@ transform_value (Convert _ b m) (Primitive v) =
         Just v => (Primitive v)
         Nothing => case b of
             KBoolean => Primitive (Boolean False)
+            KCounter => Primitive (Number 0)
             KNumber => Primitive (Number 0)
             KText => Primitive (Text [])
 transform_value (Convert _ _ _) v = v

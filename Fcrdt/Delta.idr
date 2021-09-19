@@ -21,18 +21,22 @@ Clock = Map Nat Nat
 
 %name Clock c, c', c''
 
+public export
 max : Nat -> Clock -> Nat
 max i c = get_or 0 i c
 
+public export
 next : Nat -> Clock -> Dot
 next i c = (i, max i c + 1)
 
 after : Dot -> Clock -> Bool
 after (i, n) c = n > max i c
 
+public export
 to_clock : Dot -> Clock
 to_clock (k, v) = insert k v Empty
 
+public export
 union : Clock -> Clock -> Clock
 union c1 c2 = union' (pairs c1) c2 where
     union' : List (Nat, Nat) -> Clock -> Clock
@@ -396,6 +400,7 @@ test_orm2 : IO ()
 test_orm2 = putStrLn $ show $ map (acc gc_value) $ orm_get 0 test_orm2'
 
 ||| YATA (doubly linked list)
+public export
 record Block v where
     constructor MkBlock
     dot : Dot
@@ -406,9 +411,14 @@ record Block v where
 %name Block blk, blk', blk''
 
 public export
-Yata : (v : Type) -> Type
-Yata v = Causal (List (Block v))
+DotList : (v : Type) -> Type
+DotList v = List (Block v)
 
+public export
+Yata : (v : Type) -> Type
+Yata v = Causal (DotList v)
+
+public export
 yata_empty : Yata v
 yata_empty = ([], Empty)
 
